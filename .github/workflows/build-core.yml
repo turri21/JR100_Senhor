@@ -1,0 +1,53 @@
+# Build the MiSTer .rbf with Quartus 17.0 in a container.
+#
+# Manual trigger only for now (workflow_dispatch); enable push/tag
+# triggers once the flow is proven. Uses the same image and script as
+# local builds (tools/compile_rbf.sh) so both paths stay identical.
+#
+# Disk note: the raetro/quartus:17.0 image is ~6 GB compressed /
+# ~10 GB unpacked; the cleanup step frees preinstalled toolchains so
+# the pull fits comfortably.
+
+name: build-core
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rbf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/.ghcup
+          df -h /
+
+      - name: Pull Quartus image
+        run: docker pull docker.io/raetro/quartus:17.0
+
+      - name: Compile
+        run: CONTAINER_RUNTIME=docker tools/compile_rbf.sh JR100
+
+      - name: Summarise results
+        run: |
+          ls -la output_files
+          for f in output_files/*.summary; do
+            echo "===== $f ====="
+            cat "$f"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JR100-rbf
+          path: |
+            output_files/JR100.rbf
+            output_files/*.summary
+          retention-days: 14
+          if-no-files-found: error

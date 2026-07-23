@@ -8,7 +8,7 @@
 |---|---|
 | ライセンス | リポジトリ全体 GPL-2.0（Template_MiSTer に従う）。新規HDLは GPL-2.0-or-later。MIT由来の移植部はヘッダで帰属表記 |
 | CPU | MB8861H を SystemVerilog で新規実装（既存 cpu68 は VHDL のため Verilator 非対応、かつ GPL-3.0 で不採用） |
-| 合成環境 | **正式・恒久のビルド経路は GitHub Actions（x86_64ネイティブランナー）**。Rosetta 2 は macOS 27 でフルサポート終了・macOS 28 でほぼ廃止のため、Macローカルの x86_64 合成には期限がある。ローカルは Apple Container（Rosetta 2 変換、`container` CLI）を高速反復用として**使えるうちに**利用する（podman/Docker は予備）。合成スクリプトはランタイム中立（`CONTAINER_RUNTIME` で切替）に書き、CI とローカルで同一イメージ・同一手順を共有する |
+| 合成環境 | **正式ビルド経路は GitHub Actions**（`.github/workflows/build-core.yml`、当面 `workflow_dispatch` 手動起動）。ローカル（Apple Container + Rosetta 2）は2026-07-23/24に検証済み: Quartus 17.0.2 の起動・全体のエラボレーション・論理合成はエラー0で進行するが、**スループットが実効0.1コア以下に劣化し完走は非実用**（19時間でも第1ステージ未完）。よってローカルはツールチェーン検証・緊急用にとどめ、合成はCIで行う。スクリプトはランタイム中立（`tools/compile_rbf.sh`、`CONTAINER_RUNTIME`）でCI/ローカル同一手順 |
 | ベース | [Template_MiSTer](https://github.com/MiSTer-devel/Template_MiSTer) commit `69b8a2a`。`sys/` は無改変維持 |
 | 参照実装 | pyjr100emu。既定で同階層 `../jr100emu` にチェックアウト（検証ツール側で環境変数により上書き可能にする予定） |
 
