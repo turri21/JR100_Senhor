@@ -1,8 +1,8 @@
-# JR-100 for MiSTer
+# [National JR-100](https://en.wikipedia.org/wiki/Matsushita_JR_series) for [MiSTer Platform](https://github.com/MiSTer-devel/Main_MiSTer/wiki)
 
-FPGA re-implementation of the National (Matsushita) JR-100 personal computer (1981) for the [MiSTer FPGA](https://mister-devel.github.io/MkDocs_MiSTer/) platform.
+FPGA re-implementation of the National (Matsushita) JR-100 personal computer (1981).
 
-松下電器 JR-100 の MiSTer 用 FPGA コアです。SuperStation One / DE10-Nano で動作確認済み。
+*日本語版は [README.ja.md](README.ja.md) をご覧ください。*
 
 ## Features
 
@@ -13,6 +13,8 @@ FPGA re-implementation of the National (Matsushita) JR-100 personal computer (19
 - BEEP audio with output band limiting (VIA internals never stop)
 - OSD loading of PROG containers (`.prg` v1/v2); convert BASIC text with `tools/bas2prg.py`
 - Optional 16 KiB extended RAM at `4000-7FFF` (OSD, applied at reset)
+
+Tested on SuperStation One and DE10-Nano.
 
 ## ROM
 
@@ -47,12 +49,12 @@ CONTAINER_RUNTIME=docker tools/compile_rbf.sh JR100
 
 ## Development & verification
 
-Based on [Template_MiSTer](https://github.com/MiSTer-devel/Template_MiSTer); the `sys/` framework directory is unmodified. The behavioural reference is pyjr100emu, expected as a sibling checkout at `../jr100emu`.
+Based on [Template_MiSTer](https://github.com/MiSTer-devel/Template_MiSTer); the `sys/` framework directory is unmodified. The behavioural reference is pyjr100emu, expected as a sibling checkout at `../jr100emu`. Development documents are written in Japanese:
 
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — plan, environment, verification suites
 - [docs/TRACE_FORMAT.md](docs/TRACE_FORMAT.md) — lockstep trace format
 - [docs/BOOT_LOCKSTEP.md](docs/BOOT_LOCKSTEP.md) — boot comparison convention and M1 result
-- [AGENTS.md](AGENTS.md) — requirements (Japanese)
+- [AGENTS.md](AGENTS.md) — requirements
 
 Simulation (Verilator) covers CPU lockstep, VIA per-cycle vectors, boot-to-READY, frame rendering, joystick/PRG/audio acceptance: see the `tools/run_*` scripts.
 
