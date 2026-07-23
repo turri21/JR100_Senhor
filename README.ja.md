@@ -14,7 +14,7 @@
 - OSDからのPROGコンテナ（`.prg` v1/v2）ロード。BASICテキストは `tools/bas2prg.py` で変換
 - 拡張RAM 16KiB（`4000-7FFF`、OSD選択・リセット時反映）
 
-SuperStation One / DE10-Nano で動作確認済み。
+SuperStation One で動作確認済み（キーボード: ELECOM TK-FCM077PBK、コントローラ: Xbox One）。
 
 ## ROMについて
 

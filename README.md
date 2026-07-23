@@ -14,7 +14,7 @@ FPGA re-implementation of the National (Matsushita) JR-100 personal computer (19
 - OSD loading of PROG containers (`.prg` v1/v2); convert BASIC text with `tools/bas2prg.py`
 - Optional 16 KiB extended RAM at `4000-7FFF` (OSD, applied at reset)
 
-Tested on SuperStation One and DE10-Nano.
+Tested on SuperStation One (keyboard: ELECOM TK-FCM077PBK, controller: Xbox One).
 
 ## ROM
 
