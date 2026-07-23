@@ -1,0 +1,8 @@
+# IER set/clear gating of the IRQ line, IFR write-clear
+N 300
+W 5 E C0
+W 10 4 10
+W 15 5 00
+W 100 E 40
+W 150 E C0
+W 200 D 7F

@@ -43,6 +43,7 @@ module jr100_via
     output logic        irq,        // level to CPU
     output logic        pb7_out,    // sound source (Timer1 square wave)
     output logic        font_user,  // Port B bit 5 view (display font select)
+    output logic        dbg_pb6,    // Port B bit 6 view (cycle unit tests)
 
     // trace/debug (raw register values, TRACE_FORMAT v1)
     output logic [7:0]  dbg_ora,
@@ -106,6 +107,7 @@ module jr100_via
     assign irq = |(ifr & ier);
     assign pb7_out = in_b(irb, orb, ddrb)[7];
     assign font_user = in_b(irb, orb, ddrb)[5];
+    assign dbg_pb6 = in_b(irb, orb, ddrb)[6];
 
     assign dbg_ora  = ora;
     assign dbg_orb  = orb;

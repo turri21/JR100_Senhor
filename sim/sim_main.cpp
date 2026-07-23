@@ -153,6 +153,7 @@ int main(int argc, char** argv) {
     auto* top = new Vmb8861;
     top->rst = 1;
     top->cen = 1;
+    top->vector_reset = 0;
     top->nmi_set = 0;
     top->irq_level = 0;
     top->init_pc = start_pc & 0xFFFF;

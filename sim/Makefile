@@ -28,3 +28,9 @@ clean:
 	rm -rf obj_dir
 
 .PHONY: all clean
+
+obj_dir/Vjr100_via: ../rtl/jr100/jr100_via.sv sim_via.cpp Makefile
+	$(VERILATOR) --cc --exe --build -O2 --top-module jr100_via \
+		-Wno-MULTIDRIVEN \
+		-CFLAGS "-O2 -std=c++17" \
+		../rtl/jr100/jr100_via.sv sim_via.cpp -o Vjr100_via

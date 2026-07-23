@@ -36,10 +36,12 @@ module mb8861
     input  logic        rst,        // synchronous, active high
     input  logic        cen,        // clock enable (1 CPU cycle per cen pulse)
 
-    // Initial state injection, sampled while rst is asserted.
-    // Used by the Verilator lockstep harness; the MiSTer core will
-    // instead run the real reset vector sequence in Phase E (load PC
-    // from FFFE/FFFF and set the I flag, per the MC6800 RESET spec).
+    // Reset behaviour: with vector_reset=1 the CPU performs the real
+    // MC6800 RESET sequence after rst deasserts (fetch PC from
+    // FFFE/FFFF, set the I flag; other registers take the init_*
+    // values). With vector_reset=0 the full initial state is injected
+    // from init_* (lockstep harness mode).
+    input  logic        vector_reset,
     input  logic [15:0] init_pc,
     input  logic [15:0] init_sp,
     input  logic [15:0] init_ix,
@@ -87,6 +89,8 @@ module mb8861
     // Sequencer state
     // ------------------------------------------------------------------
     typedef enum logic [4:0] {
+        ST_RST_VH,     // real reset: vector high byte from FFFE
+        ST_RST_VL,     // real reset: vector low byte from FFFF
         ST_FETCH,
         ST_OP1,
         ST_OP2,
@@ -460,6 +464,8 @@ module mb8861
         bus_wdata = 8'h00;
         bus_we    = 1'b0;
         case (state)
+            ST_RST_VH: bus_addr = 16'hFFFE;
+            ST_RST_VL: bus_addr = 16'hFFFF;
             ST_FETCH:  bus_addr = pc;
             ST_OP1:    bus_addr = pc;
             ST_OP2:    bus_addr = pc;
@@ -560,12 +566,12 @@ module mb8861
             a   <= init_a;
             b   <= init_b;
             fh  <= init_cc[5];
-            fi  <= init_cc[4];
+            fi  <= vector_reset ? 1'b1 : init_cc[4];   // MC6800 RESET sets I
             fn  <= init_cc[3];
             fz  <= init_cc[2];
             fv  <= init_cc[1];
             fc  <= init_cc[0];
-            state     <= ST_FETCH;
+            state     <= vector_reset ? ST_RST_VH : ST_FETCH;
             ucnt      <= 4'd0;
             cyc_total <= 4'd0;
             ir        <= 8'h01;
@@ -585,6 +591,19 @@ module mb8861
                 ucnt <= ucnt + 4'd1;
 
                 unique case (state)
+                // --------------------------------------------------------
+                ST_RST_VH: begin
+                    mdr   <= bus_rdata;
+                    state <= ST_RST_VL;
+                    ucnt  <= 4'd0;
+                end
+
+                ST_RST_VL: begin
+                    pc    <= {mdr, bus_rdata};
+                    state <= ST_FETCH;
+                    ucnt  <= 4'd0;
+                end
+
                 // --------------------------------------------------------
                 ST_FETCH: begin
                     if (int_pending) begin
@@ -978,7 +997,8 @@ module mb8861
                 // Cycle padding / end-of-instruction handling.
                 // Runs after the state case so it can override `state`.
                 // ----------------------------------------------------
-                if (state != ST_FETCH && state != ST_WAI_WAIT) begin
+                if (state != ST_FETCH && state != ST_WAI_WAIT &&
+                    state != ST_RST_VH && state != ST_RST_VL) begin
                     if (ucnt + 4'd1 >= cyc_total) begin
                         state <= wai_mode ? ST_WAI_WAIT : ST_FETCH;
                         ucnt  <= 4'd0;

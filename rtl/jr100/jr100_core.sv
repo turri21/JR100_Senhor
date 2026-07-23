@@ -29,7 +29,8 @@ module jr100_core
     input  logic        rst,
     input  logic        cen,
 
-    // initial CPU state injection (lockstep harness)
+    // reset mode and initial CPU state injection (see mb8861.sv)
+    input  logic        vector_reset,
     input  logic [15:0] init_pc,
     input  logic [15:0] init_sp,
     input  logic [15:0] init_ix,
@@ -113,6 +114,7 @@ module jr100_core
         .clk       (clk),
         .rst       (rst),
         .cen       (cen),
+        .vector_reset (vector_reset),
         .init_pc   (init_pc),
         .init_sp   (init_sp),
         .init_ix   (init_ix),
@@ -148,6 +150,7 @@ module jr100_core
         .irq        (via_irq),
         .pb7_out    (pb7),
         .font_user  (via_font_user),
+        .dbg_pb6    (),
         .dbg_ora    (dbg_ora),
         .dbg_orb    (dbg_orb),
         .dbg_ddra   (dbg_ddra),

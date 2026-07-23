@@ -1,0 +1,7 @@
+# T1 one-shot (ACR mode 0): IRQ enable, timeout sets IFR, T1CL read clears
+N 400
+W 5 E C0
+W 10 4 30
+W 15 5 00
+R 200 4
+W 300 D 40

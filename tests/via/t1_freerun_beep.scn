@@ -1,0 +1,9 @@
+# BASIC BEEP chain: ACR=E0 (T1 mode3 PB7 toggle + T2 pulse count),
+# DDRB=20, PB7->PB6 jumper on timeouts, T2 counts PB6 falling edges
+N 800
+W 5 2 20
+W 10 B E0
+W 20 8 04
+W 25 9 00
+W 30 4 0A
+W 35 5 00

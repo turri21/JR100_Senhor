@@ -83,6 +83,7 @@ int main(int argc, char** argv) {
     const char* frame_path = nullptr;
     const char* program_name = "unknown";
     bool boot = false;
+    bool vector_reset = false;
     bool pc_given = false, sp_given = false, cc_given = false;
     uint32_t start_pc = 0x0300;
     uint32_t start_sp = 0x0244;
@@ -101,6 +102,7 @@ int main(int argc, char** argv) {
         };
         if (arg == "--image") image_path = next();
         else if (arg == "--boot") boot = true;
+        else if (arg == "--vector-reset") vector_reset = true;
         else if (arg == "--pc") { start_pc = parse_hex(next()); pc_given = true; }
         else if (arg == "--sp") { start_sp = parse_hex(next()); sp_given = true; }
         else if (arg == "--a") init_a = parse_hex(next());
@@ -173,6 +175,11 @@ int main(int argc, char** argv) {
     top->cen_vid = 0;
     top->vid_rdata = 0;
     top->key_matrix = 0;
+    top->vector_reset = vector_reset ? 1 : 0;
+    if (vector_reset) {
+        start_sp = 0x0000;
+        init_cc = 0xD0;
+    }
     top->init_pc = start_pc & 0xFFFF;
     top->init_sp = start_sp & 0xFFFF;
     top->init_ix = init_ix & 0xFFFF;

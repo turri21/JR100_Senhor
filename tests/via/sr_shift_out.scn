@@ -1,0 +1,4 @@
+# Shift register out at system clock (ACR mode 0x18)
+N 100
+W 5 B 18
+W 10 A A5
