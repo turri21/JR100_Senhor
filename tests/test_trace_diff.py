@@ -57,6 +57,25 @@ class CompareTracesTest(unittest.TestCase):
         self.assertTrue(divergence.length_mismatch)
 
 
+class CpuOnlyCompareTest(unittest.TestCase):
+    def test_cpu_only_ignores_via_field_mismatch(self) -> None:
+        via_mutated = SAMPLE_B.replace("t1=0000", "t1=1234")
+        a = trace_diff.parse_trace(_trace(SAMPLE_A, SAMPLE_B).splitlines())
+        b = trace_diff.parse_trace(_trace(SAMPLE_A, via_mutated).splitlines())
+        self.assertIsNotNone(trace_diff.compare_traces(a, b))
+        self.assertIsNone(
+            trace_diff.compare_traces(a, b, fields=trace_diff.CPU_FIELDS)
+        )
+
+    def test_cpu_only_still_detects_cpu_field_mismatch(self) -> None:
+        cpu_mutated = SAMPLE_B.replace("a=02", "a=03")
+        a = trace_diff.parse_trace(_trace(SAMPLE_A, SAMPLE_B).splitlines())
+        b = trace_diff.parse_trace(_trace(SAMPLE_A, cpu_mutated).splitlines())
+        divergence = trace_diff.compare_traces(a, b, fields=trace_diff.CPU_FIELDS)
+        self.assertIsNotNone(divergence)
+        self.assertEqual(divergence.mismatches, [("a", "02", "03")])
+
+
 class HexDumpTest(unittest.TestCase):
     DUMP = "\n".join(
         [
@@ -97,6 +116,15 @@ class MainTest(unittest.TestCase):
 
     def test_exit_two_on_missing_file(self) -> None:
         self.assertEqual(trace_diff.main(["/nonexistent/a", "/nonexistent/b"]), 2)
+
+    def test_cpu_only_flag_ignores_via_divergence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ref = self._write(tmp, "ref.trace", _trace(SAMPLE_A, SAMPLE_B))
+            via_mut = self._write(
+                tmp, "via.trace", _trace(SAMPLE_A, SAMPLE_B.replace("ifr=00", "ifr=40"))
+            )
+            self.assertEqual(trace_diff.main([ref, via_mut]), 1)
+            self.assertEqual(trace_diff.main([ref, via_mut, "--cpu-only"]), 0)
 
 
 if __name__ == "__main__":

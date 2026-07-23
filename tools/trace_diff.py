@@ -34,6 +34,9 @@ TRACE_FIELDS = (
     "t1", "t1l", "t2", "t2l",
 )
 
+# CPU-only comparison for phases where the DUT has no VIA yet (Phase C).
+CPU_FIELDS = ("n", "clk", "pc", "a", "b", "ix", "sp", "cc")
+
 
 class TraceFormatError(ValueError):
     """Raised when a trace line does not follow docs/TRACE_FORMAT.md."""
@@ -80,11 +83,16 @@ def parse_trace(lines: Iterable[str]) -> List[Sample]:
     return samples
 
 
-def compare_traces(ref: Sequence[Sample], dut: Sequence[Sample]) -> Optional[Divergence]:
+def compare_traces(
+    ref: Sequence[Sample],
+    dut: Sequence[Sample],
+    *,
+    fields: Sequence[str] = TRACE_FIELDS,
+) -> Optional[Divergence]:
     for sample_ref, sample_dut in zip(ref, dut):
         mismatches = [
             (key, sample_ref.fields[key], sample_dut.fields[key])
-            for key in TRACE_FIELDS
+            for key in fields
             if sample_ref.fields[key] != sample_dut.fields[key]
         ]
         if mismatches:
@@ -181,6 +189,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default=3,
         help="Reference samples to print before the divergence (default 3)",
     )
+    parser.add_argument(
+        "--cpu-only",
+        action="store_true",
+        help="Compare only CPU fields (n/clk/pc/a/b/ix/sp/cc); use while the DUT has no VIA",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -195,7 +208,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    divergence = compare_traces(ref, dut)
+    fields = CPU_FIELDS if args.cpu_only else TRACE_FIELDS
+    divergence = compare_traces(ref, dut, fields=fields)
     failed = False
     if divergence is not None:
         _print_trace_divergence(divergence, ref, args.context)
