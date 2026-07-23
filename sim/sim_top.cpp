@@ -54,6 +54,7 @@ int main(int argc, char** argv) {
     const char* dump_path = nullptr;
     const char* frame_path = nullptr;
     const char* prg_path = nullptr;
+    const char* audio_path = nullptr;
     const char* program_name = "jr100-boot";
     uint64_t max_cycles = 600000;
     uint32_t joy = 0, joy2 = 0;
@@ -72,6 +73,7 @@ int main(int argc, char** argv) {
         else if (arg == "--dump") dump_path = next();
         else if (arg == "--frame") frame_path = next();
         else if (arg == "--prg") prg_path = next();
+        else if (arg == "--audio") audio_path = next();
         else if (arg == "--joy") joy = parse_hex(next());
         else if (arg == "--joy2") joy2 = parse_hex(next());
         else if (arg == "--joy2-at") joy2_at = strtoull(next(), nullptr, 10);
@@ -150,6 +152,12 @@ int main(int argc, char** argv) {
     uint64_t cpu_cycles = 0;
     long samples = 0;
     bool epoch_seen = false;
+    FILE* audio_fp = nullptr;
+    int audio_last = -1;
+    if (audio_path) {
+        audio_fp = fopen(audio_path, "w");
+        if (!audio_fp) { fprintf(stderr, "error: cannot open %s\n", audio_path); return 2; }
+    }
     const uint64_t hard_limit = (max_cycles + 100) * 64ULL * 4ULL;
     uint64_t fast = 0;
     while (fast++ < hard_limit) {
@@ -177,10 +185,16 @@ int main(int argc, char** argv) {
             }
         }
         const bool cen = top->cen_cpu_out;
+        if (audio_fp && cen && top->audio != audio_last) {
+            fprintf(audio_fp, "%llu %d\n",
+                    static_cast<unsigned long long>(cpu_cycles), top->audio ? 1 : 0);
+            audio_last = top->audio;
+        }
         tick();
         if (cen) ++cpu_cycles;
         if (joy2_at && cpu_cycles >= joy2_at) top->joy_status = joy2 & 0xFF;
     }
+    if (audio_fp) fclose(audio_fp);
     if (trace) fclose(trace);
 
     if (prg_path) {

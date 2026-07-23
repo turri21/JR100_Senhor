@@ -45,8 +45,10 @@ module jr100_top
     input  logic [44:0] key_matrix,
     input  logic [7:0]  joy_status,   // CC02 value (AGENTS.md §4)
 
-    // audio source (band limiting comes later, AGENTS.md §3.4)
+    // audio: raw PB7 and the band-limited output stage (AGENTS.md §3.4).
+    // The gate only affects the output; VIA internals never stop.
     output logic        pb7,
+    output logic        audio,
 
     // video
     output logic        vid_pixel,
@@ -94,6 +96,12 @@ module jr100_top
     end
     logic prg_busy;
     assign cen_cpu = (cen_cnt == 6'd63) && !cpu_hold && !prg_busy;
+
+    // Output band limiting (AGENTS.md §3.4): the square wave frequency is
+    // 894886.25/(latch1+2)/2 Hz. Against a 48 kHz PCM output (24 kHz
+    // Nyquist) it aliases when latch1+2 <= 18, so mute below latch1=17.
+    // Sound is produced only in T1 mode 3 (ACR[7:6]=11, BASIC ACR=E0).
+    assign audio = pb7 && (dbg_acr[7:6] == 2'b11) && (dbg_t1l >= 16'd17);
     assign cen_pix = (cen_cnt[2:0] == 3'd7);
     assign cen_cpu_out = cen_cpu;
     assign cen_pix_out = cen_pix;

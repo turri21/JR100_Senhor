@@ -151,7 +151,7 @@ jr100_keyboard keyboard
 	.key_matrix(key_matrix)
 );
 
-wire pb7;
+wire pb7, audio;
 wire vid_pixel, vid_de, vid_hs, vid_vs;
 wire cen_pix;
 
@@ -175,6 +175,7 @@ jr100_top core
 	.joy_status  (joy_status),
 
 	.pb7         (pb7),
+	.audio       (audio),
 
 	.vid_pixel   (vid_pixel),
 	.vid_de      (vid_de),
@@ -219,10 +220,9 @@ assign VGA_R  = {8{vid_pixel}};
 assign VGA_G  = {8{vid_pixel}};
 assign VGA_B  = {8{vid_pixel}};
 
-// Raw Timer 1 square wave for now; the band-limiting stage arrives
-// with M4 (AGENTS.md §3.4).
-assign AUDIO_L = {1'b0, pb7, 14'd0};
-assign AUDIO_R = {1'b0, pb7, 14'd0};
+// Band-limited Timer 1 square wave (AGENTS.md §3.4)
+assign AUDIO_L = {1'b0, audio, 14'd0};
+assign AUDIO_R = {1'b0, audio, 14'd0};
 
 assign LED_USER = ioctl_download;
 
