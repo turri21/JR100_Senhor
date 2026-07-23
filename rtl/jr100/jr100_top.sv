@@ -49,6 +49,9 @@ module jr100_top
     output logic [8:0]  vid_hcnt,
     output logic [8:0]  vid_vcnt,
 
+    // clock enables (CE_PIXEL for the MiSTer video pipeline)
+    output logic        cen_pix_out,
+
     // debug/trace (same set as jr100_core)
     output logic        cen_cpu_out,
     output logic        boundary,
@@ -85,6 +88,7 @@ module jr100_top
     assign cen_cpu = (cen_cnt == 6'd63) && !cpu_hold;
     assign cen_pix = (cen_cnt[2:0] == 3'd7);
     assign cen_cpu_out = cen_cpu;
+    assign cen_pix_out = cen_pix;
 
     logic core_rst;
     assign core_rst = rst | downloading;
