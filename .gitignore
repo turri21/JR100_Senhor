@@ -43,3 +43,7 @@ c5_pin_model_dump.txt
 *.rom
 boot.rom
 jr100rom*
+
+# simulation build artifacts
+sim/obj_dir
+sim/work
