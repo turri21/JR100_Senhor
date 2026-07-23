@@ -35,6 +35,12 @@ module jr100_top
     input  logic [12:0] loader_addr,
     input  logic [7:0]  loader_data,
 
+    // PROG container loader (user programs, CPU frozen while active)
+    input  logic        prg_download,
+    input  logic        prg_wr,
+    input  logic [7:0]  prg_data,
+    output logic        prg_wait,
+
     // JR-100 inputs
     input  logic [44:0] key_matrix,
     input  logic [7:0]  joy_status,   // CC02 value (AGENTS.md §4)
@@ -86,7 +92,8 @@ module jr100_top
         if (rst) cen_cnt <= '0;
         else     cen_cnt <= cen_cnt + 6'd1;
     end
-    assign cen_cpu = (cen_cnt == 6'd63) && !cpu_hold;
+    logic prg_busy;
+    assign cen_cpu = (cen_cnt == 6'd63) && !cpu_hold && !prg_busy;
     assign cen_pix = (cen_cnt[2:0] == 3'd7);
     assign cen_cpu_out = cen_cpu;
     assign cen_pix_out = cen_pix;
@@ -153,13 +160,33 @@ module jr100_top
         .dbg_t2l    (dbg_t2l)
     );
 
+    // PROG loader shares the CPU memory port (CPU frozen meanwhile),
+    // so its writes see the same writable-region decode as the CPU.
+    logic        prg_mem_we;
+    logic [15:0] prg_mem_addr;
+    logic [7:0]  prg_mem_data;
+
+    jr100_loader prg_loader
+    (
+        .clk      (clk),
+        .rst      (rst),
+        .download (prg_download),
+        .wr       (prg_wr),
+        .data     (prg_data),
+        .wait_req (prg_wait),
+        .busy     (prg_busy),
+        .mem_we   (prg_mem_we),
+        .mem_addr (prg_mem_addr),
+        .mem_data (prg_mem_data)
+    );
+
     jr100_mem mem
     (
         .clk         (clk),
         .rst         (core_rst),
-        .cpu_addr    (ext_addr),
-        .cpu_wdata   (ext_wdata),
-        .cpu_we      (ext_we),
+        .cpu_addr    (prg_busy ? prg_mem_addr : ext_addr),
+        .cpu_wdata   (prg_busy ? prg_mem_data : ext_wdata),
+        .cpu_we      (prg_busy ? prg_mem_we : ext_we),
         .cpu_rdata   (ext_rdata),
         .vid_addr    (vid_addr),
         .vid_rdata   (vid_rdata),

@@ -64,6 +64,7 @@ localparam CONF_STR = {
 	"JR100;;",
 	"-;",
 	"F0,rom,Load BASIC ROM;",
+	"F1,prg,Load PRG;",
 	"-;",
 	"O[122:121],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"-;",
@@ -104,7 +105,8 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	.ioctl_index(ioctl_index),
 	.ioctl_wr(ioctl_wr),
 	.ioctl_addr(ioctl_addr),
-	.ioctl_dout(ioctl_dout)
+	.ioctl_dout(ioctl_dout),
+	.ioctl_wait(prg_wait)
 );
 
 ///////////////////////   CLOCKS   ///////////////////////////////
@@ -127,6 +129,9 @@ wire reset = RESET | status[0] | buttons[1];
 // ioctl index 0: an 8 KiB image, char ROM first (AGENTS.md §7).
 wire rom_download = ioctl_download && (ioctl_index[5:0] == 0);
 wire loader_we = ioctl_wr && rom_download && (ioctl_addr[26:13] == 0);
+
+wire prg_download = ioctl_download && (ioctl_index[5:0] == 1);
+wire prg_wait;
 
 // MiSTer joystick -> JR-100 CC02 (AGENTS.md §4): bit0=right, bit1=left,
 // bit2=up, bit3=down, bit4=fire, all active high, idle = 00.
@@ -160,6 +165,11 @@ jr100_top core
 	.loader_we   (loader_we),
 	.loader_addr (ioctl_addr[12:0]),
 	.loader_data (ioctl_dout),
+
+	.prg_download (prg_download),
+	.prg_wr       (ioctl_wr && prg_download),
+	.prg_data     (ioctl_dout),
+	.prg_wait     (prg_wait),
 
 	.key_matrix  (key_matrix),
 	.joy_status  (joy_status),

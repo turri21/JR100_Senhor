@@ -53,6 +53,7 @@ int main(int argc, char** argv) {
     const char* trace_path = nullptr;
     const char* dump_path = nullptr;
     const char* frame_path = nullptr;
+    const char* prg_path = nullptr;
     const char* program_name = "jr100-boot";
     uint64_t max_cycles = 600000;
     uint32_t joy = 0, joy2 = 0;
@@ -70,6 +71,7 @@ int main(int argc, char** argv) {
         else if (arg == "--trace") trace_path = next();
         else if (arg == "--dump") dump_path = next();
         else if (arg == "--frame") frame_path = next();
+        else if (arg == "--prg") prg_path = next();
         else if (arg == "--joy") joy = parse_hex(next());
         else if (arg == "--joy2") joy2 = parse_hex(next());
         else if (arg == "--joy2-at") joy2_at = strtoull(next(), nullptr, 10);
@@ -122,6 +124,9 @@ int main(int argc, char** argv) {
     top->loader_data = 0;
     top->key_matrix = 0;
     top->joy_status = joy & 0xFF;
+    top->prg_download = 0;
+    top->prg_wr = 0;
+    top->prg_data = 0;
     top->clk = 0; top->eval();
     tick();
     top->rst = 0;
@@ -177,6 +182,28 @@ int main(int argc, char** argv) {
         if (joy2_at && cpu_cycles >= joy2_at) top->joy_status = joy2 & 0xFF;
     }
     if (trace) fclose(trace);
+
+    if (prg_path) {
+        // Stream a PROG container through the PRG loader (CPU frozen by
+        // prg busy), then let the finaliser drain.
+        FILE* fp = fopen(prg_path, "rb");
+        if (!fp) { fprintf(stderr, "error: cannot open %s\n", prg_path); return 2; }
+        int c;
+        top->prg_download = 1;
+        tick();   // download leads the first wr, as with real hps_io
+        while ((c = fgetc(fp)) != EOF) {
+            while (top->prg_wait) tick();
+            top->prg_wr = 1;
+            top->prg_data = static_cast<uint8_t>(c);
+            top->eval();
+            tick();
+            top->prg_wr = 0;
+            tick();
+        }
+        fclose(fp);
+        top->prg_download = 0;
+        for (int i = 0; i < 64; ++i) tick();   // drain the finaliser
+    }
 
     if (frame_path) {
         static uint8_t fb[192][256];
