@@ -30,6 +30,13 @@
 | F | M3/M4 | PS/2入力で BASIC の入力・LIST・RUN、`joystick_0`→`0xCC02` 変換、入力・音声受入試験、OSD からの PRG/BAS ロード |
 | G | M5 | README整備、公開前スクラブ（個人情報・ROM・git履歴）、public化、`.rbf` リリース |
 
+## テスト実行
+
+- 本リポジトリ（tools等のPythonユーティリティ）: `python3 -m unittest discover -s tests`
+- 参照実装側: `cd ../jr100emu && .venv/bin/python -m pytest tests/unit`
+- トレース生成例: `PYTHONPATH=src python -m jr100emu.debug_runner --program datas/maze_init_test.prg --start 0x0300 --cycles 20000 --trace ref.trace`（形式は [TRACE_FORMAT.md](TRACE_FORMAT.md)）
+- トレース比較: `python3 tools/trace_diff.py ref.trace dut.trace [--mem ref.dump dut.dump]`
+
 ## 検証方針
 
 - 各フェーズで Verilator テストとロックステップ差分ゼロを確認してから次へ進む
