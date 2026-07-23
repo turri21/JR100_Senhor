@@ -1,0 +1,14 @@
+#!/bin/sh
+# Reject accidental commits of JR-100 ROM images and macOS junk files.
+# Enable with: ./scripts/setup-hooks.sh
+
+blocked=$(git diff --cached --name-only --diff-filter=ACMR |
+	grep -i -E '\.rom$|(^|/)boot\.rom$|(^|/)jr100rom[^/]*$|(^|/)\.DS_Store$')
+
+if [ -n "$blocked" ]; then
+	echo "commit blocked: ROM or junk files are staged:" >&2
+	echo "$blocked" >&2
+	echo "JR-100 ROM images are user-supplied and must never be committed." >&2
+	exit 1
+fi
+exit 0

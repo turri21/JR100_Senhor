@@ -1,0 +1,3 @@
+# Keep files byte-identical to upstream Template_MiSTer (sys/ has CRLF line endings).
+# No EOL conversion anywhere in this repo.
+* -text
