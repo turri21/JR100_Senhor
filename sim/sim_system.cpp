@@ -81,6 +81,8 @@ int main(int argc, char** argv) {
     const char* trace_path = nullptr;
     const char* dump_path = nullptr;
     const char* program_name = "unknown";
+    bool boot = false;
+    bool pc_given = false, sp_given = false, cc_given = false;
     uint32_t start_pc = 0x0300;
     uint32_t start_sp = 0x0244;
     uint32_t init_a = 0, init_b = 0, init_ix = 0, init_cc = 0xC0;
@@ -97,12 +99,13 @@ int main(int argc, char** argv) {
             return argv[++i];
         };
         if (arg == "--image") image_path = next();
-        else if (arg == "--pc") start_pc = parse_hex(next());
-        else if (arg == "--sp") start_sp = parse_hex(next());
+        else if (arg == "--boot") boot = true;
+        else if (arg == "--pc") { start_pc = parse_hex(next()); pc_given = true; }
+        else if (arg == "--sp") { start_sp = parse_hex(next()); sp_given = true; }
         else if (arg == "--a") init_a = parse_hex(next());
         else if (arg == "--b") init_b = parse_hex(next());
         else if (arg == "--ix") init_ix = parse_hex(next());
-        else if (arg == "--cc") init_cc = parse_hex(next());
+        else if (arg == "--cc") { init_cc = parse_hex(next()); cc_given = true; }
         else if (arg == "--cycles") max_cycles = strtoull(next(), nullptr, 10);
         else if (arg == "--trace") trace_path = next();
         else if (arg == "--dump") dump_path = next();
@@ -136,6 +139,18 @@ int main(int argc, char** argv) {
     if (got != sizeof(g_mem)) {
         fprintf(stderr, "error: image must be 65536 bytes (got %zu)\n", got);
         return 2;
+    }
+
+    if (boot) {
+        // Boot comparison convention (docs/BOOT_LOCKSTEP.md): PC from the
+        // reset vector, I=1 (RESET spec), everything else normalised to 0.
+        if (pc_given || sp_given || cc_given) {
+            fprintf(stderr, "error: --boot cannot be combined with --pc/--sp/--cc\n");
+            return 2;
+        }
+        start_pc = (static_cast<uint32_t>(g_mem[0xFFFE]) << 8) | g_mem[0xFFFF];
+        start_sp = 0x0000;
+        init_cc = 0xD0;
     }
 
     FILE* trace = nullptr;

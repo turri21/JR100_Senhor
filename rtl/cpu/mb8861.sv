@@ -38,7 +38,8 @@ module mb8861
 
     // Initial state injection, sampled while rst is asserted.
     // Used by the Verilator lockstep harness; the MiSTer core will
-    // instead run the real reset vector sequence (Phase E).
+    // instead run the real reset vector sequence in Phase E (load PC
+    // from FFFE/FFFF and set the I flag, per the MC6800 RESET spec).
     input  logic [15:0] init_pc,
     input  logic [15:0] init_sp,
     input  logic [15:0] init_ix,

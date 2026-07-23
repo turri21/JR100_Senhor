@@ -73,11 +73,15 @@ module jr100_via
     logic [7:0]         pcr, acr;
     logic [7:0]         ira, ora, ddra;
     logic [7:0]         irb, orb, ddrb;
-    logic [7:0]         sr;
+    // Reset-exempt storage (R6522 datasheet: RES clears all registers
+    // except T1/T2 counters+latches and the shift register). Power-up
+    // initialisers cover the FPGA-configuration cold start, where the
+    // boot comparison convention expects zeros.
+    logic [7:0]         sr = '0;
     logic [7:0]         port_a, port_b;
     logic               prev_pb6;
-    logic [15:0]        latch1, latch2;
-    logic signed [16:0] timer1, timer2;
+    logic [15:0]        latch1 = '0, latch2 = '0;
+    logic signed [16:0] timer1 = '0, timer2 = '0;
     logic               t1_init, t1_en, t2_init, t2_en;
     logic               shift_tick, shift_started;
     logic [2:0]         shift_cnt;
@@ -407,13 +411,13 @@ module jr100_via
 
     always_ff @(posedge clk) begin
         if (rst) begin
+            // T1/T2 counters+latches and SR are reset-exempt (R6522 RES);
+            // they keep their power-up zeros on the cold start.
             ifr = '0; ier = '0; pcr = '0; acr = '0;
             ira = '0; ora = '0; ddra = '0;
             irb = '0; orb = '0; ddrb = '0;
-            sr = '0; port_a = '0; port_b = '0;
+            port_a = '0; port_b = '0;
             prev_pb6 = 1'b0;
-            latch1 = '0; latch2 = '0;
-            timer1 = '0; timer2 = '0;
             t1_init = 1'b0; t1_en = 1'b0;
             t2_init = 1'b0; t2_en = 1'b0;
             shift_tick = 1'b0; shift_started = 1'b0; shift_cnt = '0;
