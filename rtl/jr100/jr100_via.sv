@@ -105,9 +105,14 @@ module jr100_via
     endfunction
 
     assign irq = |(ifr & ier);
-    assign pb7_out = in_b(irb, orb, ddrb)[7];
-    assign font_user = in_b(irb, orb, ddrb)[5];
-    assign dbg_pb6 = in_b(irb, orb, ddrb)[6];
+
+    // Quartus 17.0 does not accept bit-selects on function call results,
+    // so the Port B view is materialised as a signal.
+    logic [7:0] port_b_view;
+    assign port_b_view = (irb & ~ddrb) | (orb & ddrb);
+    assign pb7_out   = port_b_view[7];
+    assign font_user = port_b_view[5];
+    assign dbg_pb6   = port_b_view[6];
 
     assign dbg_ora  = ora;
     assign dbg_orb  = orb;
@@ -176,7 +181,9 @@ module jr100_via
 
     // JR100R6522._jumper_pb7_pb6
     task automatic jumper_pb7_pb6();
-        set_port_b_bit(6, in_b(irb, orb, ddrb)[7]);
+        logic [7:0] view;
+        view = in_b(irb, orb, ddrb);
+        set_port_b_bit(6, view[7]);
     endtask
 
     // JR100R6522.store_iora_option: keyboard row scan
@@ -288,7 +295,11 @@ module jr100_via
         end
 
         // Timer 2 (PB6 edge computed after Timer 1, as in the reference)
-        pb6_now = in_b(irb, orb, ddrb)[6];
+        begin
+            logic [7:0] view;
+            view = in_b(irb, orb, ddrb);
+            pb6_now = view[6];
+        end
         pb6_negative = prev_pb6 && !pb6_now;
         prev_pb6 = pb6_now;
 
