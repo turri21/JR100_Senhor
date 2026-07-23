@@ -50,12 +50,16 @@ module jr100_mem
     input  logic [7:0]  loader_data,
 
     // joystick status for CC02 (AGENTS.md §4 bit layout, active high)
-    input  logic [7:0]  joy_status
+    input  logic [7:0]  joy_status,
+
+    // extended RAM 4000-7FFF (AGENTS.md §3.2, OSD-selectable)
+    input  logic        ext_ram_en
 );
 
     // vram/basic_rom are padded to powers of two for clean indexing
     // (the decode gates keep accesses inside the architectural ranges)
     logic [7:0] main_ram [0:16383] /* verilator public_flat_rd */;
+    logic [7:0] ext_ram  [0:16383] /* verilator public_flat_rd */;
     logic [7:0] cgram    [0:255] /* verilator public_flat_rd */;
     logic [7:0] vram     [0:1023] /* verilator public_flat_rd */;
     logic [7:0] char_rom [0:1023] /* verilator public_flat_rd */;
@@ -64,9 +68,10 @@ module jr100_mem
     // ------------------------------------------------------------------
     // CPU port decode
     // ------------------------------------------------------------------
-    logic sel_ram, sel_cgram, sel_vram, sel_cc02, sel_d000;
+    logic sel_ram, sel_xram, sel_cgram, sel_vram, sel_cc02, sel_d000;
     logic sel_crom, sel_brom;
     assign sel_ram   = (cpu_addr < 16'h4000);
+    assign sel_xram  = ext_ram_en && (cpu_addr[15:14] == 2'b01);   // 4000-7FFF
     assign sel_cgram = (cpu_addr[15:8] == 8'hC0);
     assign sel_vram  = (cpu_addr >= 16'hC100 && cpu_addr <= 16'hC3FF);
     assign sel_cc02  = (cpu_addr == 16'hCC02);
@@ -74,8 +79,8 @@ module jr100_mem
     assign sel_crom  = (cpu_addr[15:10] == 6'b111000);          // E000-E3FF
     assign sel_brom  = (cpu_addr >= 16'hE400);
 
-    logic [7:0] q_ram, q_cgram, q_vram, q_crom, q_brom;
-    logic r_ram, r_cgram, r_vram, r_cc02, r_d000, r_crom, r_brom;
+    logic [7:0] q_ram, q_xram, q_cgram, q_vram, q_crom, q_brom;
+    logic r_ram, r_xram, r_cgram, r_vram, r_cc02, r_d000, r_crom, r_brom;
     logic [7:0] cc02_reg;
     logic [7:0] joy_prev;
 
@@ -83,6 +88,10 @@ module jr100_mem
         // Main RAM
         if (cpu_we && sel_ram) main_ram[cpu_addr[13:0]] <= cpu_wdata;
         q_ram <= main_ram[cpu_addr[13:0]];
+
+        // extended RAM (writes ignored while disabled, as unmapped)
+        if (cpu_we && sel_xram) ext_ram[cpu_addr[13:0]] <= cpu_wdata;
+        q_xram <= ext_ram[cpu_addr[13:0]];
 
         // CGRAM
         if (cpu_we && sel_cgram) cgram[cpu_addr[7:0]] <= cpu_wdata;
@@ -110,6 +119,7 @@ module jr100_mem
 
         // registered region select, aligned with BRAM read latency
         r_ram   <= sel_ram;
+        r_xram  <= sel_xram;
         r_cgram <= sel_cgram;
         r_vram  <= sel_vram;
         r_cc02  <= sel_cc02;
@@ -120,6 +130,7 @@ module jr100_mem
 
     always_comb begin
         if (r_ram)        cpu_rdata = q_ram;
+        else if (r_xram)  cpu_rdata = q_xram;
         else if (r_cgram) cpu_rdata = q_cgram;
         else if (r_vram)  cpu_rdata = q_vram;
         else if (r_cc02)  cpu_rdata = cc02_reg;

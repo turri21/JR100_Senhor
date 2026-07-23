@@ -67,6 +67,7 @@ localparam CONF_STR = {
 	"F1,prg,Load PRG;",
 	"-;",
 	"O[122:121],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+	"O[2],Extended RAM (reset),Off,On;",
 	"-;",
 	"R[0],Reset;",
 	"J,Fire;",
@@ -173,6 +174,7 @@ jr100_top core
 
 	.key_matrix  (key_matrix),
 	.joy_status  (joy_status),
+	.ext_ram_en  (status[2]),
 
 	.pb7         (pb7),
 	.audio       (audio),

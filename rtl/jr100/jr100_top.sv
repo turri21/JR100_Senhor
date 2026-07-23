@@ -44,6 +44,7 @@ module jr100_top
     // JR-100 inputs
     input  logic [44:0] key_matrix,
     input  logic [7:0]  joy_status,   // CC02 value (AGENTS.md §4)
+    input  logic        ext_ram_en,   // sampled at reset (board fitted)
 
     // audio: raw PB7 and the band-limited output stage (AGENTS.md §3.4).
     // The gate only affects the output; VIA internals never stop.
@@ -109,6 +110,11 @@ module jr100_top
     logic core_rst;
     assign core_rst = rst | downloading;
 
+    // Extended RAM presence is a physical-board property: latch the OSD
+    // setting at reset so it does not appear or vanish mid-run.
+    logic ext_ram_eff;
+    always_ff @(posedge clk) if (rst) ext_ram_eff <= ext_ram_en;
+
     // ------------------------------------------------------------------
     // Core + memories
     // ------------------------------------------------------------------
@@ -136,6 +142,7 @@ module jr100_top
         .ext_we     (ext_we),
         .ext_rdata  (ext_rdata),
         .key_matrix (key_matrix),
+        .ext_ram_en (ext_ram_eff),
         .pb7        (pb7),
         .cen_vid    (cen_pix),
         .vid_addr   (vid_addr),
@@ -201,7 +208,8 @@ module jr100_top
         .loader_we   (loader_we),
         .loader_addr (loader_addr),
         .loader_data (loader_data),
-        .joy_status  (joy_status)
+        .joy_status  (joy_status),
+        .ext_ram_en  (ext_ram_eff)
     );
 
 endmodule

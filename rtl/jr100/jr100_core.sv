@@ -46,6 +46,7 @@ module jr100_core
 
     // JR-100 inputs
     input  logic [44:0] key_matrix,  // 9 rows x 5 bits, 1 = pressed
+    input  logic        ext_ram_en,  // extended RAM 4000-7FFF present
 
     // audio source
     output logic        pb7,
@@ -100,6 +101,7 @@ module jr100_core
     logic ext_writable;
     assign ext_writable =
         (bus_addr < 16'h4000) ||
+        (ext_ram_en && bus_addr[15:14] == 2'b01) ||
         (bus_addr >= 16'hC000 && bus_addr <= 16'hC3FF) ||
         (bus_addr == 16'hCC02);
 

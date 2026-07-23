@@ -57,6 +57,7 @@ int main(int argc, char** argv) {
     const char* audio_path = nullptr;
     const char* program_name = "jr100-boot";
     uint64_t max_cycles = 600000;
+    bool ext_ram = false;
     uint32_t joy = 0, joy2 = 0;
     uint64_t joy2_at = 0;   // CPU cycle to switch joy -> joy2 (0 = never)
     std::vector<DumpRange> ranges;
@@ -73,6 +74,7 @@ int main(int argc, char** argv) {
         else if (arg == "--dump") dump_path = next();
         else if (arg == "--frame") frame_path = next();
         else if (arg == "--prg") prg_path = next();
+        else if (arg == "--ext-ram") ext_ram = true;
         else if (arg == "--audio") audio_path = next();
         else if (arg == "--joy") joy = parse_hex(next());
         else if (arg == "--joy2") joy2 = parse_hex(next());
@@ -129,6 +131,7 @@ int main(int argc, char** argv) {
     top->prg_download = 0;
     top->prg_wr = 0;
     top->prg_data = 0;
+    top->ext_ram_en = ext_ram ? 1 : 0;
     top->clk = 0; top->eval();
     tick();
     top->rst = 0;
