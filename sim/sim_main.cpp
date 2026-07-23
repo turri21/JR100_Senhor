@@ -86,6 +86,8 @@ int main(int argc, char** argv) {
     uint32_t init_a = 0, init_b = 0, init_ix = 0, init_cc = 0xC0;
     uint64_t max_cycles = 1000000;
     std::vector<DumpRange> ranges;
+    std::vector<std::pair<uint64_t, int>> irq_events;   // cycle -> level
+    std::vector<uint64_t> nmi_events;                   // cycle (pulse)
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -107,6 +109,17 @@ int main(int argc, char** argv) {
         else if (arg == "--trace") trace_path = next();
         else if (arg == "--dump") dump_path = next();
         else if (arg == "--program-name") program_name = next();
+        else if (arg == "--irq-at") {
+            std::string spec = next();
+            auto colon = spec.find(':');
+            if (colon == std::string::npos) {
+                fprintf(stderr, "error: --irq-at CYCLE:LEVEL\n");
+                return 2;
+            }
+            irq_events.emplace_back(strtoull(spec.c_str(), nullptr, 10),
+                                    atoi(spec.c_str() + colon + 1));
+        }
+        else if (arg == "--nmi-at") nmi_events.push_back(strtoull(next(), nullptr, 10));
         else if (arg == "--dump-range") {
             DumpRange r;
             if (!parse_range(next(), r)) {
@@ -171,11 +184,23 @@ int main(int argc, char** argv) {
 
     uint64_t cycles = 0;
     long samples = 0;
+    size_t irq_next = 0;
+    size_t nmi_next = 0;
     while (true) {
         if (top->boundary && cycles > 0) {
             ++samples;
             if (trace) emit_sample(trace, samples, cycles, top);
             if (cycles >= max_cycles) break;
+        }
+        // interrupt events become visible at the first boundary >= cycle
+        while (irq_next < irq_events.size() && cycles >= irq_events[irq_next].first) {
+            top->irq_level = irq_events[irq_next].second ? 1 : 0;
+            ++irq_next;
+        }
+        top->nmi_set = 0;
+        if (nmi_next < nmi_events.size() && cycles >= nmi_events[nmi_next]) {
+            top->nmi_set = 1;
+            ++nmi_next;
         }
         top->bus_rdata = g_mem[top->bus_addr];
         top->eval();

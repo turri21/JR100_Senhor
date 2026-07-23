@@ -608,12 +608,11 @@ module mb8861
                 ST_FETCH: begin
                     if (int_pending) begin
                         // NMI/IRQ entry: 12 cycles, no opcode fetch.
-                        // Sets the I flag; the IRQ level stays asserted
-                        // until the device deasserts it.
+                        // I is set only after the registers (with the
+                        // pre-entry CC) are stacked - see ST_VEC_L.
                         in_int     <= 1'b1;
                         int_is_nmi <= nmi_pend;
                         if (nmi_pend) nmi_pend <= 1'b0;
-                        fi        <= 1'b1;
                         wai_mode  <= 1'b0;
                         cyc_total <= 4'd12;
                         stk       <= 3'd0;
@@ -965,6 +964,7 @@ module mb8861
 
                 ST_VEC_L: begin
                     pc <= {mdr, bus_rdata};
+                    if (in_int) fi <= 1'b1;   // NMI/IRQ set I after stacking
                     state <= ST_PAD;
                 end
 
@@ -981,7 +981,6 @@ module mb8861
                         in_int     <= 1'b1;
                         int_is_nmi <= nmi_pend;
                         if (nmi_pend) nmi_pend <= 1'b0;
-                        fi        <= 1'b1;
                         wai_mode  <= 1'b0;
                         cyc_total <= 4'd4;
                         ucnt      <= 4'd1;   // this detect cycle counts as 1
