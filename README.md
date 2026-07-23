@@ -2,24 +2,59 @@
 
 FPGA re-implementation of the National (Matsushita) JR-100 personal computer (1981) for the [MiSTer FPGA](https://mister-devel.github.io/MkDocs_MiSTer/) platform.
 
-松下電器 JR-100 の MiSTer 用 FPGA コアです。
+松下電器 JR-100 の MiSTer 用 FPGA コアです。SuperStation One / DE10-Nano で動作確認済み。
 
-**Status: early development — not yet usable.**
-現在は開発初期段階です。要件は [AGENTS.md](AGENTS.md)、開発計画は [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) を参照してください。
+## Features
+
+- MB8861H CPU (MC6800 compatible + NIM/OIM/XIM/TMM/ADX extensions), cycle counts verified by instruction-boundary lockstep against the [pyjr100emu](https://github.com/zabaglione/pyjr100emu) reference emulator
+- R6522 VIA (timers, shift register, PB7 sound, keyboard matrix scan) verified per-cycle against the reference
+- 32x24 character display (256x192 mono), user-defined characters including the real-hardware shared-VRAM glyphs
+- PS/2 keyboard (full 9x5 matrix), joystick on `$CC02` (active high)
+- BEEP audio with output band limiting (VIA internals never stop)
+- OSD loading of PROG containers (`.prg` v1/v2); convert BASIC text with `tools/bas2prg.py`
+- Optional 16 KiB extended RAM at `4000-7FFF` (OSD, applied at reset)
 
 ## ROM
 
-This repository contains **no ROM images**. To use the core, place a JR-100 BASIC ROM image you legally own as `boot.rom` under `/media/fat/games/JR100/` on your MiSTer. Never commit ROM images to this repository (a pre-commit guard is provided — run `./scripts/setup-hooks.sh` once after cloning).
+This repository contains **no ROM images**. Place a JR-100 BASIC ROM you legally own as an 8 KiB raw image (character ROM first 1 KiB, BASIC from offset `0400`) at:
 
-本リポジトリに ROM は含まれません。お手持ちの JR-100 BASIC ROM を `boot.rom` として `/media/fat/games/JR100/` に配置してください。
+```
+/media/fat/games/JR100/boot.rom
+```
 
-## Reference implementation
+If your ROM is a PROG container (`jr100rom.prg`), convert it once with:
 
-Behavioral reference is the `pyjr100emu` emulator (MIT), expected as a sibling checkout at `../jr100emu` by the verification tooling.
+```bash
+python3 tools/prog2rom.py jr100rom.prg boot.rom
+```
+
+The core auto-loads `boot.rom` at start; the OSD "Load BASIC ROM" entry does the same manually. Never commit ROM images to this repository (`./scripts/setup-hooks.sh` installs a pre-commit guard).
+
+## Loading programs
+
+- `.prg` (PROG v1/v2 containers): OSD → "Load PRG". Binary sections load to their addresses; BASIC sections load at `0246` with workspace pointers set, ready for `LIST`/`RUN`.
+- `.bas` (BASIC text): convert first with `python3 tools/bas2prg.py program.bas program.prg`.
 
 ## Build
 
-Quartus Prime 17.0.x, project file `JR100.qpf`. Based on [Template_MiSTer](https://github.com/MiSTer-devel/Template_MiSTer) (commit `69b8a2a`); the `sys/` framework directory is unmodified.
+The official build runs on GitHub Actions (`.github/workflows/build-core.yml`, Quartus 17.0 in a container). The identical local path is:
+
+```bash
+CONTAINER_RUNTIME=docker tools/compile_rbf.sh JR100
+```
+
+(Any OCI runtime works; on Apple Silicon the toolchain runs but is impractically slow under Rosetta — use CI.)
+
+## Development & verification
+
+Based on [Template_MiSTer](https://github.com/MiSTer-devel/Template_MiSTer); the `sys/` framework directory is unmodified. The behavioural reference is pyjr100emu, expected as a sibling checkout at `../jr100emu`.
+
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — plan, environment, verification suites
+- [docs/TRACE_FORMAT.md](docs/TRACE_FORMAT.md) — lockstep trace format
+- [docs/BOOT_LOCKSTEP.md](docs/BOOT_LOCKSTEP.md) — boot comparison convention and M1 result
+- [AGENTS.md](AGENTS.md) — requirements (Japanese)
+
+Simulation (Verilator) covers CPU lockstep, VIA per-cycle vectors, boot-to-READY, frame rendering, joystick/PRG/audio acceptance: see the `tools/run_*` scripts.
 
 ## License
 
