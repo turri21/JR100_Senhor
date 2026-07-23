@@ -8,7 +8,7 @@
 |---|---|
 | ライセンス | リポジトリ全体 GPL-2.0（Template_MiSTer に従う）。新規HDLは GPL-2.0-or-later。MIT由来の移植部はヘッダで帰属表記 |
 | CPU | MB8861H を SystemVerilog で新規実装（既存 cpu68 は VHDL のため Verilator 非対応、かつ GPL-3.0 で不採用） |
-| 合成環境 | Mac 上のコンテナで Quartus 17.0.2（x86_64）を実行（[MiSTer公式ドキュメント](https://mister-devel.github.io/MkDocs_MiSTer/developer/mistercompile/)の devcontainer 方式と同等）。ランタイムは **Apple Container（Rosetta 2 変換）優先 → podman → Docker** の順で M2 着手前に検証。合成スクリプトはランタイム中立（`CONTAINER_RUNTIME` で切替）に書く。全滅時は GitHub Actions（raetro/quartus）へ切替 |
+| 合成環境 | **正式・恒久のビルド経路は GitHub Actions（x86_64ネイティブランナー）**。Rosetta 2 は macOS 27 でフルサポート終了・macOS 28 でほぼ廃止のため、Macローカルの x86_64 合成には期限がある。ローカルは Apple Container（Rosetta 2 変換、`container` CLI）を高速反復用として**使えるうちに**利用する（podman/Docker は予備）。合成スクリプトはランタイム中立（`CONTAINER_RUNTIME` で切替）に書き、CI とローカルで同一イメージ・同一手順を共有する |
 | ベース | [Template_MiSTer](https://github.com/MiSTer-devel/Template_MiSTer) commit `69b8a2a`。`sys/` は無改変維持 |
 | 参照実装 | pyjr100emu。既定で同階層 `../jr100emu` にチェックアウト（検証ツール側で環境変数により上書き可能にする予定） |
 
@@ -27,7 +27,7 @@
 | C | M0→M1 | MB8861 CPU コアを `rtl/cpu/mb8861.sv` に新規実装 ✅（6800全命令 + 拡張5命令 + 割込み実装済み。maze系テスト6本・計約10.3万サンプルでCPU単体ロックステップ一致。割込み・WAI経路のロックステップ検証は未実施） |
 | D | M1 | R6522 VIA（`rtl/jr100/jr100_via.sv`）とシステム統合（`rtl/jr100/jr100_core.sv`: アドレスデコード・ROM書き込み保護・拡張I/O）を実装 ✅。maze系6本を**VIA状態込み全フィールド**で一致確認。sound_scale.prg はCPU状態・メモリが13,900サンプル一致（タイマ位相のみ下記の既知モデル差）。**M1達成（2026-07-23）**: BASIC ROMブート照合で600,000サイクル・132,758サンプルが全フィールド一致、READY表示を確認（[BOOT_LOCKSTEP.md](BOOT_LOCKSTEP.md)）。表示パイプライン・キーボード実入力の検証は未着手 |
 | D | M1 | システム統合シミュレーション: メモリマップ（BRAM）、R6522 VIA、キーボード9×5行列、表示（32×24・256×192・モノクロ・VRAM共有CGRAM）、`0xCC02` ジョイスティック、音声（Timer 1 + 出力帯域制御）。受入: リセット→READY まで参照実装と一致 |
-| E | M2 | devcontainer 検証 → `emu`/`CONF_STR`/`hps_io`/`ioctl_*` 接続 → 初回合成 → 実機で BASIC 画面表示 |
+| E | M2 | 表示パイプライン `rtl/jr100/jr100_video.sv` 実装 ✅（文字ジェネレータ4種のグリフ源、VRAM共有CGRAM=実機仕様対応。ブート後READY画面がPython表示モデルと**画素完全一致**。フレームタイミングは暫定でM2のHDMI出力時に実機仕様へ調整）。残: 合成コンテナ検証（実行中）→ `emu`/`CONF_STR`/`hps_io`/`ioctl_*` 接続 → CPU実リセットシーケンス → 初回合成 → 実機で BASIC 画面表示 |
 | F | M3/M4 | PS/2入力で BASIC の入力・LIST・RUN、`joystick_0`→`0xCC02` 変換、入力・音声受入試験、OSD からの PRG/BAS ロード |
 | G | M5 | README整備、公開前スクラブ（個人情報・ROM・git履歴）、public化、`.rbf` リリース |
 
@@ -63,6 +63,8 @@ Python 版は命令一括実行の設計上、CPU からの VIA アクセスを*
 - トレース生成例: `PYTHONPATH=src python -m jr100emu.debug_runner --program datas/maze_init_test.prg --start 0x0300 --cycles 20000 --trace ref.trace`（形式は [TRACE_FORMAT.md](TRACE_FORMAT.md)）
 - トレース比較: `python3 tools/trace_diff.py ref.trace dut.trace [--cpu-only] [--mem ref.dump dut.dump]`
 - CPU単体ロックステップ一括実行: `tools/run_lockstep.sh datas/maze_init_test.prg 20000`（Verilatorビルド込み。プログラムは pyjr100emu チェックアウト相対）
+- フレーム検証: DUTに `--frame out.pgm` を付けて実行し、`python3 tools/render_reference.py --image <img> --dump <dump> --out ref.pgm` と `cmp` で画素比較
+- 合成（要Quartusコンテナ）: `tools/compile_rbf.sh JR100`（`CONTAINER_RUNTIME` で container/podman/docker 切替。ソースをVMローカルへコピーして実行）
 - CPUサイクル表の再抽出: `python3 tools/dump_opcode_table.py > docs/generated/opcode_cycles.txt`
 
 ## 検証方針

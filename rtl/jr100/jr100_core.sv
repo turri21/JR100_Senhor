@@ -49,6 +49,17 @@ module jr100_core
     // audio source
     output logic        pb7,
 
+    // video (second read port into the shared address space)
+    input  logic        cen_vid,
+    output logic [15:0] vid_addr,
+    input  logic [7:0]  vid_rdata,
+    output logic        vid_pixel,
+    output logic        vid_de,
+    output logic        vid_hs,
+    output logic        vid_vs,
+    output logic [8:0]  vid_hcnt,
+    output logic [8:0]  vid_vcnt,
+
     // trace/debug
     output logic        boundary,
     output logic [15:0] dbg_pc,
@@ -78,6 +89,7 @@ module jr100_core
     logic [7:0]  bus_rdata;
     logic        via_irq;
     logic [7:0]  via_rdata;
+    logic        via_font_user;
 
     logic via_sel;
     assign via_sel = (bus_addr[15:4] == 12'hC80);
@@ -135,6 +147,7 @@ module jr100_core
         .key_matrix (key_matrix),
         .irq        (via_irq),
         .pb7_out    (pb7),
+        .font_user  (via_font_user),
         .dbg_ora    (dbg_ora),
         .dbg_orb    (dbg_orb),
         .dbg_ddra   (dbg_ddra),
@@ -148,6 +161,22 @@ module jr100_core
         .dbg_t1l    (dbg_t1l),
         .dbg_t2     (dbg_t2),
         .dbg_t2l    (dbg_t2l)
+    );
+
+    jr100_video video
+    (
+        .clk       (clk),
+        .rst       (rst),
+        .cen_pix   (cen_vid),
+        .font_user (via_font_user),
+        .vid_addr  (vid_addr),
+        .vid_rdata (vid_rdata),
+        .pixel     (vid_pixel),
+        .de        (vid_de),
+        .hs        (vid_hs),
+        .vs        (vid_vs),
+        .hcnt      (vid_hcnt),
+        .vcnt      (vid_vcnt)
     );
 
 endmodule

@@ -5,7 +5,8 @@
 VERILATOR ?= verilator
 
 CPU_RTL := ../rtl/cpu/mb8861.sv
-SYS_RTL := ../rtl/cpu/mb8861.sv ../rtl/jr100/jr100_via.sv ../rtl/jr100/jr100_core.sv
+SYS_RTL := ../rtl/cpu/mb8861.sv ../rtl/jr100/jr100_via.sv \
+           ../rtl/jr100/jr100_video.sv ../rtl/jr100/jr100_core.sv
 
 all: obj_dir/Vmb8861 obj_dir/Vjr100_core
 

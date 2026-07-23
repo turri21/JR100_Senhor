@@ -80,6 +80,7 @@ int main(int argc, char** argv) {
     const char* image_path = nullptr;
     const char* trace_path = nullptr;
     const char* dump_path = nullptr;
+    const char* frame_path = nullptr;
     const char* program_name = "unknown";
     bool boot = false;
     bool pc_given = false, sp_given = false, cc_given = false;
@@ -109,6 +110,7 @@ int main(int argc, char** argv) {
         else if (arg == "--cycles") max_cycles = strtoull(next(), nullptr, 10);
         else if (arg == "--trace") trace_path = next();
         else if (arg == "--dump") dump_path = next();
+        else if (arg == "--frame") frame_path = next();
         else if (arg == "--program-name") program_name = next();
         else if (arg == "--dump-range") {
             DumpRange r;
@@ -168,6 +170,8 @@ int main(int argc, char** argv) {
     auto* top = new Vjr100_core;
     top->rst = 1;
     top->cen = 1;
+    top->cen_vid = 0;
+    top->vid_rdata = 0;
     top->key_matrix = 0;
     top->init_pc = start_pc & 0xFFFF;
     top->init_sp = start_sp & 0xFFFF;
@@ -206,6 +210,36 @@ int main(int argc, char** argv) {
     }
 
     if (trace && trace != stdout) fclose(trace);
+
+    if (frame_path) {
+        // Freeze CPU/VIA and scan one full video frame from the final
+        // memory state (256x192 active pixels, PGM P5 output).
+        static uint8_t fb[192][256];
+        memset(fb, 0, sizeof(fb));
+        top->cen = 0;
+        top->cen_vid = 1;
+        const uint64_t frame_cycles = 455ULL * 262ULL + 16;
+        for (uint64_t i = 0; i < frame_cycles; ++i) {
+            top->vid_rdata = g_mem[top->vid_addr];
+            top->ext_rdata = g_mem[top->ext_addr];
+            top->eval();
+            if (top->vid_de) {
+                const uint32_t x = top->vid_hcnt - 64;
+                const uint32_t y = top->vid_vcnt - 35;
+                if (x < 256 && y < 192) fb[y][x] = top->vid_pixel ? 255 : 0;
+            }
+            top->clk = 1; top->eval();
+            top->clk = 0; top->eval();
+        }
+        FILE* fp = fopen(frame_path, "wb");
+        if (!fp) {
+            fprintf(stderr, "error: cannot open frame %s\n", frame_path);
+            return 2;
+        }
+        fputs("P5\n256 192\n255\n", fp);
+        fwrite(fb, 1, sizeof(fb), fp);
+        fclose(fp);
+    }
 
     if (dump_path) {
         FILE* fp = (strcmp(dump_path, "-") == 0) ? stdout : fopen(dump_path, "w");
