@@ -8,7 +8,7 @@
 |---|---|
 | ライセンス | リポジトリ全体 GPL-2.0（Template_MiSTer に従う）。新規HDLは GPL-2.0-or-later。MIT由来の移植部はヘッダで帰属表記 |
 | CPU | MB8861H を SystemVerilog で新規実装（既存 cpu68 は VHDL のため Verilator 非対応、かつ GPL-3.0 で不採用） |
-| 合成環境 | **正式ビルド経路は GitHub Actions**（`.github/workflows/build-core.yml`、当面 `workflow_dispatch` 手動起動）。ローカル（Apple Container + Rosetta 2）は2026-07-23/24に検証済み: Quartus 17.0.2 の起動・全体のエラボレーション・論理合成はエラー0で進行するが、**スループットが実効0.1コア以下に劣化し完走は非実用**（19時間でも第1ステージ未完）。よってローカルはツールチェーン検証・緊急用にとどめ、合成はCIで行う。スクリプトはランタイム中立（`tools/compile_rbf.sh`、`CONTAINER_RUNTIME`）でCI/ローカル同一手順 |
+| 合成環境 | **正式ビルド経路は GitHub Actions**（`.github/workflows/build-core.yml`、当面 `workflow_dispatch` 手動起動）。ローカル（Apple Container + Rosetta 2）は2026-07-23/24に検証済み: Quartus 17.0.2 の起動・全体のエラボレーション・論理合成はエラー0で進行するが、**スループットが実効0.1コア以下に劣化し完走は非実用**（19時間でも第1ステージ未完）。よってローカルはツールチェーン検証・緊急用にとどめ、合成はCIで行う。スクリプトはランタイム中立（`tools/compile_rbf.sh`、`CONTAINER_RUNTIME`）でCI/ローカル同一手順。**初回CIビルド実績（2026-07-24）: 全工程11分で成功**（イメージ取得込み、Cyclone V 5CSEBA6U23I7、`JR100.rbf` 2.4MB を artifact 保存） |
 | ベース | [Template_MiSTer](https://github.com/MiSTer-devel/Template_MiSTer) commit `69b8a2a`。`sys/` は無改変維持 |
 | 参照実装 | pyjr100emu。既定で同階層 `../jr100emu` にチェックアウト（検証ツール側で環境変数により上書き可能にする予定） |
 
