@@ -8,7 +8,7 @@
 |---|---|
 | ライセンス | リポジトリ全体 GPL-2.0（Template_MiSTer に従う）。新規HDLは GPL-2.0-or-later。MIT由来の移植部はヘッダで帰属表記 |
 | CPU | MB8861H を SystemVerilog で新規実装（既存 cpu68 は VHDL のため Verilator 非対応、かつ GPL-3.0 で不採用） |
-| 合成環境 | Mac 上 devcontainer（[MiSTer公式ドキュメント](https://mister-devel.github.io/MkDocs_MiSTer/developer/mistercompile/)記載。Quartus 17.0.2、RAM 8GB推奨）。M2着手前に動作検証し、不成立なら GitHub Actions（raetro/quartus Docker）へ切替 |
+| 合成環境 | Mac 上のコンテナで Quartus 17.0.2（x86_64）を実行（[MiSTer公式ドキュメント](https://mister-devel.github.io/MkDocs_MiSTer/developer/mistercompile/)の devcontainer 方式と同等）。ランタイムは **Apple Container（Rosetta 2 変換）優先 → podman → Docker** の順で M2 着手前に検証。合成スクリプトはランタイム中立（`CONTAINER_RUNTIME` で切替）に書く。全滅時は GitHub Actions（raetro/quartus）へ切替 |
 | ベース | [Template_MiSTer](https://github.com/MiSTer-devel/Template_MiSTer) commit `69b8a2a`。`sys/` は無改変維持 |
 | 参照実装 | pyjr100emu。既定で同階層 `../jr100emu` にチェックアウト（検証ツール側で環境変数により上書き可能にする予定） |
 
