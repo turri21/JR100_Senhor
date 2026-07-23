@@ -1,0 +1,166 @@
+//============================================================================
+//
+//  JR-100 real-core top (JR100_MiSTer): the structure the MiSTer emu
+//  module wraps in Phase E.
+//
+//  Clocking: one system clock (nominally 57.27272 MHz = 4x NTSC burst,
+//  8x pixel clock). Clock enables divide it exactly as the real
+//  machine's 14.31818 MHz crystal chain does:
+//      cen_cpu = clk / 64  (894.886 kHz, AGENTS.md §3.1)
+//      cen_pix = clk / 8   (7.159 MHz)
+//
+//  Memories are on-chip BRAMs (jr100_mem). The BASIC ROM image
+//  (8 KiB: char ROM 0000-03FF + BASIC E400-FFFF) is streamed in via
+//  the loader port while `downloading` holds the core in reset; on
+//  release the CPU performs the real MC6800 reset sequence
+//  (vector_reset).
+//
+//  cpu_hold is a simulation aid that freezes CPU/VIA while the video
+//  keeps scanning (frame capture); tie low in the MiSTer wrapper.
+//
+//  Copyright (C) 2026 Zabaglione
+//  SPDX-License-Identifier: GPL-2.0-or-later
+//
+//============================================================================
+
+module jr100_top
+(
+    input  logic        clk,         // system clock (8x pixel, 64x CPU)
+    input  logic        rst,
+    input  logic        downloading, // ROM upload in progress
+    input  logic        cpu_hold,    // sim aid: freeze CPU/VIA
+
+    // ROM loader (8 KiB image)
+    input  logic        loader_we,
+    input  logic [12:0] loader_addr,
+    input  logic [7:0]  loader_data,
+
+    // JR-100 inputs
+    input  logic [44:0] key_matrix,
+
+    // audio source (band limiting comes later, AGENTS.md §3.4)
+    output logic        pb7,
+
+    // video
+    output logic        vid_pixel,
+    output logic        vid_de,
+    output logic        vid_hs,
+    output logic        vid_vs,
+    output logic [8:0]  vid_hcnt,
+    output logic [8:0]  vid_vcnt,
+
+    // debug/trace (same set as jr100_core)
+    output logic        cen_cpu_out,
+    output logic        boundary,
+    output logic [15:0] dbg_pc,
+    output logic [15:0] dbg_sp,
+    output logic [15:0] dbg_ix,
+    output logic [7:0]  dbg_a,
+    output logic [7:0]  dbg_b,
+    output logic [7:0]  dbg_cc,
+    output logic [7:0]  dbg_ora,
+    output logic [7:0]  dbg_orb,
+    output logic [7:0]  dbg_ddra,
+    output logic [7:0]  dbg_ddrb,
+    output logic [7:0]  dbg_acr,
+    output logic [7:0]  dbg_pcr,
+    output logic [7:0]  dbg_ifr,
+    output logic [7:0]  dbg_ier,
+    output logic [7:0]  dbg_sr,
+    output logic [15:0] dbg_t1,
+    output logic [15:0] dbg_t1l,
+    output logic [15:0] dbg_t2,
+    output logic [15:0] dbg_t2l
+);
+
+    // ------------------------------------------------------------------
+    // Clock enables
+    // ------------------------------------------------------------------
+    logic [5:0] cen_cnt;
+    logic cen_cpu, cen_pix;
+    always_ff @(posedge clk) begin
+        if (rst) cen_cnt <= '0;
+        else     cen_cnt <= cen_cnt + 6'd1;
+    end
+    assign cen_cpu = (cen_cnt == 6'd63) && !cpu_hold;
+    assign cen_pix = (cen_cnt[2:0] == 3'd7);
+    assign cen_cpu_out = cen_cpu;
+
+    logic core_rst;
+    assign core_rst = rst | downloading;
+
+    // ------------------------------------------------------------------
+    // Core + memories
+    // ------------------------------------------------------------------
+    logic [15:0] ext_addr;
+    logic [7:0]  ext_wdata;
+    logic        ext_we;
+    logic [7:0]  ext_rdata;
+    logic [15:0] vid_addr;
+    logic [7:0]  vid_rdata;
+
+    jr100_core core
+    (
+        .clk        (clk),
+        .rst        (core_rst),
+        .cen        (cen_cpu),
+        .vector_reset (1'b1),
+        .init_pc    (16'h0000),
+        .init_sp    (16'h0000),
+        .init_ix    (16'h0000),
+        .init_a     (8'h00),
+        .init_b     (8'h00),
+        .init_cc    (8'hD0),
+        .ext_addr   (ext_addr),
+        .ext_wdata  (ext_wdata),
+        .ext_we     (ext_we),
+        .ext_rdata  (ext_rdata),
+        .key_matrix (key_matrix),
+        .pb7        (pb7),
+        .cen_vid    (cen_pix),
+        .vid_addr   (vid_addr),
+        .vid_rdata  (vid_rdata),
+        .vid_pixel  (vid_pixel),
+        .vid_de     (vid_de),
+        .vid_hs     (vid_hs),
+        .vid_vs     (vid_vs),
+        .vid_hcnt   (vid_hcnt),
+        .vid_vcnt   (vid_vcnt),
+        .boundary   (boundary),
+        .dbg_pc     (dbg_pc),
+        .dbg_sp     (dbg_sp),
+        .dbg_ix     (dbg_ix),
+        .dbg_a      (dbg_a),
+        .dbg_b      (dbg_b),
+        .dbg_cc     (dbg_cc),
+        .dbg_ora    (dbg_ora),
+        .dbg_orb    (dbg_orb),
+        .dbg_ddra   (dbg_ddra),
+        .dbg_ddrb   (dbg_ddrb),
+        .dbg_acr    (dbg_acr),
+        .dbg_pcr    (dbg_pcr),
+        .dbg_ifr    (dbg_ifr),
+        .dbg_ier    (dbg_ier),
+        .dbg_sr     (dbg_sr),
+        .dbg_t1     (dbg_t1),
+        .dbg_t1l    (dbg_t1l),
+        .dbg_t2     (dbg_t2),
+        .dbg_t2l    (dbg_t2l)
+    );
+
+    jr100_mem mem
+    (
+        .clk         (clk),
+        .rst         (core_rst),
+        .cpu_addr    (ext_addr),
+        .cpu_wdata   (ext_wdata),
+        .cpu_we      (ext_we),
+        .cpu_rdata   (ext_rdata),
+        .vid_addr    (vid_addr),
+        .vid_rdata   (vid_rdata),
+        .loader_we   (loader_we),
+        .loader_addr (loader_addr),
+        .loader_data (loader_data)
+    );
+
+endmodule

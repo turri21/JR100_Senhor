@@ -34,3 +34,13 @@ obj_dir/Vjr100_via: ../rtl/jr100/jr100_via.sv sim_via.cpp Makefile
 		-Wno-MULTIDRIVEN \
 		-CFLAGS "-O2 -std=c++17" \
 		../rtl/jr100/jr100_via.sv sim_via.cpp -o Vjr100_via
+
+TOP_RTL := ../rtl/cpu/mb8861.sv ../rtl/jr100/jr100_via.sv \
+           ../rtl/jr100/jr100_video.sv ../rtl/jr100/jr100_core.sv \
+           ../rtl/jr100/jr100_mem.sv ../rtl/jr100/jr100_top.sv
+
+obj_dir/Vjr100_top: $(TOP_RTL) sim_top.cpp Makefile
+	$(VERILATOR) --cc --exe --build -O2 --top-module jr100_top \
+		-Wno-MULTIDRIVEN \
+		-CFLAGS "-O2 -std=c++17" \
+		$(TOP_RTL) sim_top.cpp -o Vjr100_top
