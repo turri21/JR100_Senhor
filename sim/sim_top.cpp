@@ -55,6 +55,8 @@ int main(int argc, char** argv) {
     const char* frame_path = nullptr;
     const char* program_name = "jr100-boot";
     uint64_t max_cycles = 600000;
+    uint32_t joy = 0, joy2 = 0;
+    uint64_t joy2_at = 0;   // CPU cycle to switch joy -> joy2 (0 = never)
     std::vector<DumpRange> ranges;
 
     for (int i = 1; i < argc; ++i) {
@@ -68,6 +70,9 @@ int main(int argc, char** argv) {
         else if (arg == "--trace") trace_path = next();
         else if (arg == "--dump") dump_path = next();
         else if (arg == "--frame") frame_path = next();
+        else if (arg == "--joy") joy = parse_hex(next());
+        else if (arg == "--joy2") joy2 = parse_hex(next());
+        else if (arg == "--joy2-at") joy2_at = strtoull(next(), nullptr, 10);
         else if (arg == "--program-name") program_name = next();
         else if (arg == "--dump-range") {
             DumpRange r;
@@ -116,6 +121,7 @@ int main(int argc, char** argv) {
     top->loader_addr = 0;
     top->loader_data = 0;
     top->key_matrix = 0;
+    top->joy_status = joy & 0xFF;
     top->clk = 0; top->eval();
     tick();
     top->rst = 0;
@@ -168,6 +174,7 @@ int main(int argc, char** argv) {
         const bool cen = top->cen_cpu_out;
         tick();
         if (cen) ++cpu_cycles;
+        if (joy2_at && cpu_cycles >= joy2_at) top->joy_status = joy2 & 0xFF;
     }
     if (trace) fclose(trace);
 

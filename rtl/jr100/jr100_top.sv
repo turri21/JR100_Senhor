@@ -37,6 +37,7 @@ module jr100_top
 
     // JR-100 inputs
     input  logic [44:0] key_matrix,
+    input  logic [7:0]  joy_status,   // CC02 value (AGENTS.md §4)
 
     // audio source (band limiting comes later, AGENTS.md §3.4)
     output logic        pb7,
@@ -164,7 +165,8 @@ module jr100_top
         .vid_rdata   (vid_rdata),
         .loader_we   (loader_we),
         .loader_addr (loader_addr),
-        .loader_data (loader_data)
+        .loader_data (loader_data),
+        .joy_status  (joy_status)
     );
 
 endmodule

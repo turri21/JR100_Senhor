@@ -47,7 +47,10 @@ module jr100_mem
     // ROM loader (active while the core is held in reset)
     input  logic        loader_we,
     input  logic [12:0] loader_addr,
-    input  logic [7:0]  loader_data
+    input  logic [7:0]  loader_data,
+
+    // joystick status for CC02 (AGENTS.md §4 bit layout, active high)
+    input  logic [7:0]  joy_status
 );
 
     // vram/basic_rom are padded to powers of two for clean indexing
@@ -74,6 +77,7 @@ module jr100_mem
     logic [7:0] q_ram, q_cgram, q_vram, q_crom, q_brom;
     logic r_ram, r_cgram, r_vram, r_cc02, r_d000, r_crom, r_brom;
     logic [7:0] cc02_reg;
+    logic [7:0] joy_prev;
 
     always_ff @(posedge clk) begin
         // Main RAM
@@ -96,9 +100,13 @@ module jr100_mem
         q_crom <= char_rom[cpu_addr[9:0]];
         q_brom <= basic_rom[13'(cpu_addr - 16'hE400)];
 
-        // extended I/O register (CPU-writable, pyjr100emu semantics)
-        if (rst) cc02_reg <= 8'h00;
+        // extended I/O register: tracks the host joystick and stays
+        // CPU-writable until the next host change (ExtendedIOPort
+        // semantics: set_gamepad_state overwrites, store8 overwrites)
+        joy_prev <= joy_status;
+        if (rst) cc02_reg <= joy_status;   // host state persists over reset
         else if (cpu_we && sel_cc02) cc02_reg <= cpu_wdata;
+        else if (joy_status != joy_prev) cc02_reg <= joy_status;
 
         // registered region select, aligned with BRAM read latency
         r_ram   <= sel_ram;

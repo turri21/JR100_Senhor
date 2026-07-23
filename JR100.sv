@@ -128,6 +128,15 @@ wire reset = RESET | status[0] | buttons[1];
 wire rom_download = ioctl_download && (ioctl_index[5:0] == 0);
 wire loader_we = ioctl_wr && rom_download && (ioctl_addr[26:13] == 0);
 
+// MiSTer joystick -> JR-100 CC02 (AGENTS.md §4): bit0=right, bit1=left,
+// bit2=up, bit3=down, bit4=fire, all active high, idle = 00.
+wire [7:0] joy_status = {3'b000,
+                         joystick_0[4],   // fire
+                         joystick_0[2],   // down
+                         joystick_0[3],   // up
+                         joystick_0[1],   // left
+                         joystick_0[0]};  // right
+
 wire [44:0] key_matrix;
 jr100_keyboard keyboard
 (
@@ -153,6 +162,7 @@ jr100_top core
 	.loader_data (ioctl_dout),
 
 	.key_matrix  (key_matrix),
+	.joy_status  (joy_status),
 
 	.pb7         (pb7),
 
