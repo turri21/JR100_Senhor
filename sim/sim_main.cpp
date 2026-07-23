@@ -154,7 +154,7 @@ int main(int argc, char** argv) {
     top->rst = 1;
     top->cen = 1;
     top->nmi_set = 0;
-    top->irq_set = 0;
+    top->irq_level = 0;
     top->init_pc = start_pc & 0xFFFF;
     top->init_sp = start_sp & 0xFFFF;
     top->init_ix = init_ix & 0xFFFF;

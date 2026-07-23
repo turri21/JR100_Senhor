@@ -5,11 +5,13 @@
 //
 //  Compatibility baseline is the pyjr100emu reference implementation
 //  (AGENTS.md §1): instruction results, flags and per-instruction cycle
-//  counts mirror src/jr100emu/cpu/cpu.py, including its documented quirks
-//  (ORAB ext performs ADD, NEG carry polarity, no I-flag set on NMI/IRQ
-//  entry). Divergences from real-hardware datasheets are tracked in
-//  docs/DEVELOPMENT.md and must not be "fixed" here without updating the
-//  reference first (AGENTS.md §7).
+//  counts mirror src/jr100emu/cpu/cpu.py (as of pyjr100emu 9b11a18:
+//  level-sensitive IRQ, I-flag set on interrupt entry, WAI stacks
+//  registers at execution and exits via a 4-cycle vector fetch).
+//  Remaining divergences from real-hardware datasheets (SWI return
+//  address, ADC half-carry, STS flags, NIM/XIM flags) are tracked in
+//  docs/DEVELOPMENT.md and must not be "fixed" here without updating
+//  the reference first (AGENTS.md §7).
 //
 //  Timing model: one instruction consumes exactly the table cycle count
 //  (docs/generated/opcode_cycles.txt). Bus reads return combinationally
@@ -44,9 +46,11 @@ module mb8861
     input  logic [7:0]  init_b,
     input  logic [7:0]  init_cc,
 
-    // Interrupts: one-cycle pulses latch a pending request.
+    // Interrupts: NMI is edge-style (a pulse latches a pending request,
+    // cleared on service); IRQ is a level-sensitive input owned by the
+    // external device (pyjr100emu set_irq_line semantics).
     input  logic        nmi_set,
-    input  logic        irq_set,
+    input  logic        irq_level,
 
     // Memory bus: combinational read, registered write strobe.
     output logic [15:0] bus_addr,
@@ -76,7 +80,7 @@ module mb8861
     logic        fh, fi, fn, fz, fv, fc;
 
     logic        wai_mode;
-    logic        nmi_pend, irq_pend;
+    logic        nmi_pend;
 
     // ------------------------------------------------------------------
     // Sequencer state
@@ -304,11 +308,11 @@ module mb8861
         r = '0;
         r.wr_mem = 1'b1;
         case (sel)
-            4'h0: begin // NEG (C polarity mirrors pyjr100emu: C = result==0)
+            4'h0: begin // NEG
                 r.res = (~x) + 8'h01;
                 r.n = r.res[7]; r.z = (r.res == 0);
                 r.v = (r.res == 8'h80);
-                r.c = (r.res == 8'h00); r.c_we = 1'b1;
+                r.c = (x != 8'h00); r.c_we = 1'b1;
             end
             4'h3: begin // COM
                 r.res = ~x;
@@ -542,7 +546,7 @@ module mb8861
     // Implemented inside the sequential block via `finish_or_pad`.
 
     logic int_pending;
-    assign int_pending = nmi_pend | (irq_pend & ~fi);
+    assign int_pending = nmi_pend | (irq_level & ~fi);
 
     // ==================================================================
     // Main sequencer
@@ -572,11 +576,9 @@ module mb8861
             in_int    <= 1'b0;
             int_is_nmi<= 1'b0;
             nmi_pend  <= 1'b0;
-            irq_pend  <= 1'b0;
             wr1_data  <= 8'h00;
         end else begin
             if (nmi_set) nmi_pend <= 1'b1;
-            if (irq_set) irq_pend <= 1'b1;
 
             if (cen) begin
                 ucnt <= ucnt + 4'd1;
@@ -586,11 +588,12 @@ module mb8861
                 ST_FETCH: begin
                     if (int_pending) begin
                         // NMI/IRQ entry: 12 cycles, no opcode fetch.
-                        // pyjr100emu does NOT set the I flag here (quirk).
+                        // Sets the I flag; the IRQ level stays asserted
+                        // until the device deasserts it.
                         in_int     <= 1'b1;
                         int_is_nmi <= nmi_pend;
                         if (nmi_pend) nmi_pend <= 1'b0;
-                        else          irq_pend <= 1'b0;
+                        fi        <= 1'b1;
                         wai_mode  <= 1'b0;
                         cyc_total <= 4'd12;
                         stk       <= 3'd0;
@@ -612,8 +615,10 @@ module mb8861
                             cyc_total <= cyc;
                             // dispatch
                             if (op == 8'h3E) begin              // WAI
+                                // stacks all registers, then waits
                                 wai_mode <= 1'b1;
-                                state    <= (cyc == 4'd1) ? ST_FETCH : ST_PAD;
+                                stk      <= 3'd0;
+                                state    <= ST_STK_WR;
                             end else if (op == 8'h3F) begin     // SWI quirk: extra PC+1
                                 pc    <= pc + 16'd2;
                                 stk   <= 3'd0;
@@ -793,7 +798,7 @@ module mb8861
                     end else begin
                         // 8-bit ALU load commit
                         alu2_t r;
-                        r = alu2((ir == 8'hFA) ? 4'hB : ir[3:0], ir[6] ? b : a, d, fc);
+                        r = alu2(ir[3:0], ir[6] ? b : a, d, fc);
                         if (r.res_we) begin
                             if (ir[6]) b <= r.res; else a <= r.res;
                         end
@@ -924,7 +929,10 @@ module mb8861
                     if (stk == 3'd6) begin
                         sp <= sp - 16'd7;
                         if (!in_int && ir == 8'h3F) fi <= 1'b1;  // SWI sets I
-                        state <= ST_VEC_H;
+                        if (!in_int && ir == 8'h3E)
+                            state <= ST_PAD;                     // WAI: no vector fetch
+                        else
+                            state <= ST_VEC_H;
                     end else begin
                         stk <= stk + 3'd1;
                     end
@@ -947,18 +955,17 @@ module mb8861
 
                 ST_WAI_WAIT: begin
                     if (int_pending) begin
-                        // Interrupt out of WAI costs 12 + 1 cycles
-                        // (pyjr100emu consumes one extra clock in the
-                        // WAI loop even when servicing).
+                        // Registers were already stacked by WAI itself:
+                        // exit costs 4 cycles (detect + vector + pad)
+                        // and sets the I flag (pyjr100emu 9b11a18).
                         in_int     <= 1'b1;
                         int_is_nmi <= nmi_pend;
                         if (nmi_pend) nmi_pend <= 1'b0;
-                        else          irq_pend <= 1'b0;
+                        fi        <= 1'b1;
                         wai_mode  <= 1'b0;
-                        cyc_total <= 4'd13;
-                        ucnt      <= 4'd1;   // this wait cycle counts as 1
-                        stk       <= 3'd0;
-                        state     <= ST_STK_WR;
+                        cyc_total <= 4'd4;
+                        ucnt      <= 4'd1;   // this detect cycle counts as 1
+                        state     <= ST_VEC_H;
                     end
                     // otherwise: 1-cycle boundary samples, stay here
                 end
