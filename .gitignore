@@ -47,3 +47,6 @@ jr100rom*
 # simulation build artifacts
 sim/obj_dir
 sim/work
+
+# python bytecode
+__pycache__/
