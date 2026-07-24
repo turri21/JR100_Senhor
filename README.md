@@ -9,6 +9,7 @@ FPGA re-implementation of the National (Matsushita) JR-100 personal computer (19
 - MB8861H CPU (MC6800 compatible + NIM/OIM/XIM/TMM/ADX extensions), cycle counts verified by instruction-boundary lockstep against the [pyjr100emu](https://github.com/zabaglione/pyjr100emu) reference emulator
 - R6522 VIA (timers, shift register, PB7 sound, keyboard matrix scan) verified per-cycle against the reference
 - 32x24 character display (256x192 mono), user-defined characters including the real-hardware shared-VRAM glyphs
+- Real-hardware video timing: 7.15909 MHz dot clock, 15.980 kHz / 62.4 Hz sync (the JR-100's custom non-NTSC format), handled by the MiSTer scaler
 - PS/2 keyboard (full 9x5 matrix), joystick on `$CC02` (active high)
 - BEEP audio with output band limiting (VIA internals never stop)
 - OSD loading of PROG containers (`.prg` v1/v2) and BASIC text files (`.bas`)

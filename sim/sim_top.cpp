@@ -251,7 +251,7 @@ int main(int argc, char** argv) {
         static uint8_t fb[192][256];
         memset(fb, 0, sizeof(fb));
         top->cpu_hold = 1;
-        const uint64_t frame_fast = 455ULL * 262ULL * 8ULL * 2ULL;
+        const uint64_t frame_fast = 448ULL * 256ULL * 8ULL * 2ULL;
         for (uint64_t i = 0; i < frame_fast; ++i) {
             top->eval();
             if (top->vid_de) {

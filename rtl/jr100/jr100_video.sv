@@ -18,8 +18,13 @@
 //  (code at phase 6, glyph byte at phase 7, shifter load at phase 0).
 //  In the MiSTer core this becomes the second port of dual-port BRAMs.
 //
-//  Frame timing is PROVISIONAL (NTSC-like, pixel clock ~7.159 MHz,
-//  455 x 262): to be aligned with the real machine for M2 HDMI output.
+//  Frame timing follows the real machine (JR-100 technical material,
+//  asamomiji.jp): dot clock 7.15909 MHz (14.31818/2), 448 dots/line
+//  (fH = 15.980 kHz), 256 lines/frame (fV = 62.4 Hz), H sync 64 dots,
+//  V sync 8 lines. The output is deliberately NOT NTSC standard; the
+//  real machine's composite output uses this custom format. Blanking
+//  porch splits around the sync pulses are estimated (the material
+//  gives rates and pulse widths, not porch positions).
 //
 //  Copyright (C) 2026 Zabaglione
 //  SPDX-License-Identifier: GPL-2.0-or-later
@@ -46,15 +51,15 @@ module jr100_video
     output logic [8:0]  vcnt
 );
 
-    localparam int H_TOTAL     = 455;
-    localparam int V_TOTAL     = 262;
+    localparam int H_TOTAL     = 448;     // fD/448 = 15.980 kHz
+    localparam int V_TOTAL     = 256;     // fH/256 = 62.4 Hz
     localparam int H_ACT_START = 64;      // multiple of 8 (fetch alignment)
     localparam int H_ACT_END   = H_ACT_START + 256;
     localparam int V_ACT_START = 35;
     localparam int V_ACT_END   = V_ACT_START + 192;
-    localparam int H_SYNC_START = 376;
-    localparam int H_SYNC_END   = 410;
-    localparam int V_SYNC_START = 245;
+    localparam int H_SYNC_START = 352;    // 64-dot pulse (8.94 us)
+    localparam int H_SYNC_END   = 416;
+    localparam int V_SYNC_START = 240;    // 8-line pulse (500.6 us)
     localparam int V_SYNC_END   = 248;
 
     logic [7:0] code_lat;    // VRAM code fetched two pixels ahead of the cell

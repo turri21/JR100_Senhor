@@ -225,7 +225,7 @@ int main(int argc, char** argv) {
         memset(fb, 0, sizeof(fb));
         top->cen = 0;
         top->cen_vid = 1;
-        const uint64_t frame_cycles = 455ULL * 262ULL + 16;
+        const uint64_t frame_cycles = 448ULL * 256ULL + 16;
         for (uint64_t i = 0; i < frame_cycles; ++i) {
             top->vid_rdata = g_mem[top->vid_addr];
             top->ext_rdata = g_mem[top->ext_addr];
