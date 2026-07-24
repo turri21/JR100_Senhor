@@ -39,11 +39,28 @@ HDLは互換性基準である pyjr100emu の挙動を忠実に写している�
 | 1 | ORAB ext (0xFA) | OR を実行 | ORAB は OR | **解決**（pyjr100emu `9b11a18` で修正、HDL追随） |
 | 2 | NEG の C フラグ | C = (オペランド ≠ 0) | 同左 | **解決**（同上） |
 | 3 | NMI/IRQ エントリ | I フラグをセットする。IRQ はレベルセンシティブ入力 | 同左 | **解決**（同上。あわせて WAI は命令実行時にレジスタ退避し、WAI 経由の割込みエントリは退避なし4サイクルに変更） |
-| 4 | SWI の戻りアドレス | opcode+2 を push | opcode+1（次命令） | 未解決 |
-| 5 | ADC の H フラグ | キャリー入力を半桁計算に含めない | 含める | 未解決 |
-| 6 | STS のフラグ | N/Z を **IX** から設定 | SP から設定 | 未解決 |
-| 7 | NIM/OIM/XIM の N | N = (結果 ≠ 0)（bit7ではない） | 技術資料と要突合 | 未解決 |
-| 8 | XIM の V | V を更新しない（NIM/OIM は V=0) | 技術資料と要突合 | 未解決 |
+| 4 | SWI の戻りアドレス | opcode+2 を push | opcode+1（次命令） | **一次資料確認済・要修正** |
+| 5 | ADC の H フラグ | キャリー入力を半桁計算に含めない | 含める | **一次資料確認済・要修正** |
+| 6 | STS のフラグ | N/Z を **IX** から設定 | SP から設定 | **一次資料確認済・要修正** |
+| 7 | NIM/OIM/XIM の N | N = (結果 ≠ 0)（bit7ではない） | 同左（MB8861 固有仕様） | **解決（実装が正しい）** |
+| 8 | XIM の V | V を更新しない（NIM/OIM は V=0) | 同左（MB8861 固有仕様） | **解決（実装が正しい）** |
+| 9 | TMM のフラグ条件 | Bp=0 または **M=0** → Z、**M=$FF** → V、他は N | Bp=0 または **(M∧Bp)=0** → Z、**(M∧Bp)=Bp** → V、他は N（マスクビットで判定） | 未解決（要一次資料） |
+
+### 一次資料調査の結果（2026-07-24）
+
+**#4/#5/#6 — Motorola "M6800 Programming Reference Manual" M68PRM(D), Nov 1976（bitsavers/archive.org）で確認:**
+
+- **#4 SWI**: §3.3.3「The value saved for the program counter is the address of the SWI instruction, plus one.」付録の動作記述も `PC ← (PC)+0001` → push（PC は opcode 位置基準）。実装は fetch 後にさらに +1 しており opcode+2 を積む。1バイトずれのため SWI を使うソフトの RTI 復帰が壊れる（JR-100 BASIC ROM 起動列では未使用のため実害未観測）。
+- **#5 ADC**: 付録 ADC 頁「H: Set if there was a carry from bit 3」、演算は `ACCX + M + C`。ブール式 `H = X3·M3 + M3·R̄3 + R̄3·X3` は結果ビット R3（キャリー入力込み）を含む。実装は `(X&$0F)+(M&$0F)>$0F` のみで、`(X&$0F)+(M&$0F)=$0F` かつ C=1 のとき実機 H=1 / 実装 H=0 に発散。DAA を併用する BCD 演算に影響。
+- **#6 STS**: 付録 STS 頁「N: Set if the most significant bit of **the stack pointer** is set」「Z: Set if all bits of **the stack pointer** are cleared」、ブール式 `N = SPH7`。実装は IX から N/Z を設定しており誤り（V=0 は正しい）。
+- 修正手順は本節冒頭のとおり ①Python 修正+回帰テスト → ②HDL 追随 → ③ロックステップ再照合。Python 側は参照実装（pyjr100emu / Java 原典 jr100-emulator-v2 とも同一挙動）の修正判断が必要。
+
+**#7/#8 — MB8861 追加命令の資料（Fujitsu MB8861 解説, nkomatsu 氏 IC Collection）で確認:**
+
+- NIM/OIM/XIM は Z/N のみ影響し「演算結果が 0 になれば Z セット・N リセット、0 以外なら Z リセット・N セット」（通常の N=bit7 と異なる旨も明記）。NIM/OIM は V リセット、**XIM は V 不変**。H/C は全て不変。→ **参照実装（=現HDL）の挙動どおり**。#7/#8 は「一次資料との食い違い」ではなく MB8861 固有仕様と確認。
+- 原典一次資料: 星川竜輔他「MB8861 8ビットマイクロプロセッサ」FUJITSU Vol.27 No.5 pp.67-87 (1976)。MB8871 データシート転載が国会図書館デジタルコレクション「マイコン手づくり塾」に収録との情報あり（未閲覧）。
+
+**#9（新規）— TMM のフラグ条件:** 上記資料は「Bp のマスクビットに対応するオペランドビットが全て 0 → Z セット」「全て 1 → V セット」とマスク後の判定を記述する。実装（Java→Python→HDL 共通）はメモリバイト全体で `M=0` / `M=$FF` を判定しており、部分マスク時に相違（例: Bp=$01, M=$01 → 資料 V=1 / 実装 N=1）。nkomatsu 氏の解説は二次資料のため、修正前に上記一次資料（FUJITSU 誌または MB8871 データシート）での確認を要する。
 
 割込み・WAI の新挙動（I フラグ、レベル IRQ、WAI 退避、4サイクル退出）は Python 側テストで検証済みだが、HDL 側のロックステップはまだ迷路系（割込み非使用）のみ。
 
