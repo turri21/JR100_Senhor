@@ -47,6 +47,17 @@ module jr100_top
     input  logic [7:0]  bas_data,
     output logic        bas_wait,
 
+    // BASIC saver (writes the mounted S0 image, CPU frozen while active)
+    input  logic        save_req,
+    input  logic        img_mounted,
+    input  logic        img_readonly,
+    input  logic [63:0] img_size,
+    output logic [31:0] sd_lba,
+    output logic        sd_wr,
+    input  logic        sd_ack,
+    input  logic [8:0]  sd_buff_addr,
+    output logic [7:0]  sd_buff_din,
+
     // JR-100 inputs
     input  logic [44:0] key_matrix,
     input  logic [7:0]  joy_status,   // CC02 value (AGENTS.md §4)
@@ -101,8 +112,9 @@ module jr100_top
         if (rst) cen_cnt <= '0;
         else     cen_cnt <= cen_cnt + 6'd1;
     end
-    logic prg_busy, bas_busy;
-    assign cen_cpu = (cen_cnt == 6'd63) && !cpu_hold && !prg_busy && !bas_busy;
+    logic prg_busy, bas_busy, sav_busy;
+    assign cen_cpu = (cen_cnt == 6'd63) && !cpu_hold && !prg_busy && !bas_busy &&
+                     !sav_busy;
 
     // Output band limiting (AGENTS.md §3.4): the square wave frequency is
     // 894886.25/(latch1+2)/2 Hz. Against a 48 kHz PCM output (24 kHz
@@ -225,13 +237,35 @@ module jr100_top
         .mem_data (bas_mem_data)
     );
 
+    logic [15:0] sav_mem_addr;
+
+    jr100_saver saver
+    (
+        .clk          (clk),
+        .rst          (rst),
+        .save_req     (save_req),
+        .img_mounted  (img_mounted),
+        .img_readonly (img_readonly),
+        .img_size     (img_size),
+        .busy         (sav_busy),
+        .mem_addr     (sav_mem_addr),
+        .mem_rdata    (ext_rdata),
+        .sd_lba       (sd_lba),
+        .sd_wr        (sd_wr),
+        .sd_ack       (sd_ack),
+        .sd_buff_addr (sd_buff_addr),
+        .sd_buff_din  (sd_buff_din)
+    );
+
     jr100_mem mem
     (
         .clk         (clk),
         .rst         (core_rst),
-        .cpu_addr    (prg_busy ? prg_mem_addr : bas_busy ? bas_mem_addr : ext_addr),
+        .cpu_addr    (prg_busy ? prg_mem_addr : bas_busy ? bas_mem_addr :
+                      sav_busy ? sav_mem_addr : ext_addr),
         .cpu_wdata   (prg_busy ? prg_mem_data : bas_busy ? bas_mem_data : ext_wdata),
-        .cpu_we      (prg_busy ? prg_mem_we : bas_busy ? bas_mem_we : ext_we),
+        .cpu_we      (prg_busy ? prg_mem_we : bas_busy ? bas_mem_we :
+                      sav_busy ? 1'b0 : ext_we),
         .cpu_rdata   (ext_rdata),
         .vid_addr    (vid_addr),
         .vid_rdata   (vid_rdata),

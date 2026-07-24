@@ -67,6 +67,9 @@ localparam CONF_STR = {
 	"F1,prg,Load PRG;",
 	"F2,bas,Load BAS;",
 	"-;",
+	"S0,prg,Mount Save File;",
+	"T[3],Save BASIC to file;",
+	"-;",
 	"O[122:121],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O[2],Extended RAM (reset),Off,On;",
 	"-;",
@@ -108,8 +111,36 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	.ioctl_wr(ioctl_wr),
 	.ioctl_addr(ioctl_addr),
 	.ioctl_dout(ioctl_dout),
-	.ioctl_wait(prg_wait | bas_wait)
+	.ioctl_wait(prg_wait | bas_wait),
+
+	.img_mounted(img_mounted),
+	.img_readonly(img_readonly),
+	.img_size(img_size),
+	.sd_lba('{sd_lba}),
+	.sd_blk_cnt('{6'd0}),
+	.sd_rd(1'b0),
+	.sd_wr(sd_wr),
+	.sd_ack(sd_ack),
+	.sd_buff_addr(sd_buff_addr),
+	.sd_buff_din('{sd_buff_din})
 );
+
+wire        img_mounted;
+wire        img_readonly;
+wire [63:0] img_size;
+wire [31:0] sd_lba;
+wire        sd_wr;
+wire        sd_ack;
+wire  [8:0] sd_buff_addr;
+wire  [7:0] sd_buff_din;
+
+// OSD "Save BASIC to file": momentary status bit -> one-clk pulse
+reg  save_req;
+always @(posedge clk_sys) begin
+	reg old_save;
+	old_save <= status[3];
+	save_req <= ~old_save & status[3];
+end
 
 ///////////////////////   CLOCKS   ///////////////////////////////
 
@@ -180,6 +211,16 @@ jr100_top core
 	.bas_wr       (ioctl_wr && bas_download),
 	.bas_data     (ioctl_dout),
 	.bas_wait     (bas_wait),
+
+	.save_req     (save_req),
+	.img_mounted  (img_mounted),
+	.img_readonly (img_readonly),
+	.img_size     (img_size),
+	.sd_lba       (sd_lba),
+	.sd_wr        (sd_wr),
+	.sd_ack       (sd_ack),
+	.sd_buff_addr (sd_buff_addr),
+	.sd_buff_din  (sd_buff_din),
 
 	.key_matrix  (key_matrix),
 	.joy_status  (joy_status),

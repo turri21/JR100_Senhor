@@ -12,7 +12,7 @@ FPGA re-implementation of the National (Matsushita) JR-100 personal computer (19
 - Real-hardware video timing: 7.15909 MHz dot clock, 15.980 kHz / 62.4 Hz sync (the JR-100's custom non-NTSC format), handled by the MiSTer scaler
 - PS/2 keyboard (full 9x5 matrix), joystick on `$CC02` (active high)
 - BEEP audio with output band limiting (VIA internals never stop)
-- OSD loading of PROG containers (`.prg` v1/v2) and BASIC text files (`.bas`)
+- OSD loading of PROG containers (`.prg` v1/v2) and BASIC text files (`.bas`); OSD saving of the BASIC program to a mounted file
 - Optional 16 KiB extended RAM at `4000-7FFF` (OSD, applied at reset)
 
 Tested on SuperStation One (keyboard: ELECOM TK-FCM077PBK, controller: Xbox One).
@@ -37,6 +37,17 @@ The core auto-loads `boot.rom` at start; the OSD "Load BASIC ROM" entry does the
 
 - `.prg` (PROG v1/v2 containers): OSD → "Load PRG". Binary sections load to their addresses; BASIC sections load at `0246` with workspace pointers set, ready for `LIST`/`RUN`.
 - `.bas` (BASIC text): OSD → "Load BAS". Lines are tokenised as plain ASCII text (uppercased, `\xx` hex escapes supported) and loaded at `0246` with workspace pointers set, ready for `LIST`/`RUN`. `tools/bas2prg.py` remains available for offline conversion.
+- Hybrid BASIC + machine-code programs: build one PROG v2 with `python3 tools/bas2prg.py game.bas game.prg --bin 1000:routine.bin` (repeatable `--bin ADDR:FILE`), load it via "Load PRG", and call the code with `USR($1000)`.
+
+## Saving programs
+
+The cassette `SAVE` command has no tape to write to; instead the OSD saves the current BASIC program to a file:
+
+1. Create a blank save file once: `python3 tools/make_save_file.py mywork.prg` (16 KiB; any multiple of 512 bytes works) and put it in `games/JR100/`.
+2. OSD → "Mount Save File" → pick it.
+3. OSD → "Save BASIC to file" whenever you want to save. The file becomes a normal PROG v2 container, so it reloads through "Load PRG" (and in emulators).
+
+Typing `LOAD`/`SAVE` in BASIC still drives the cassette routines into nothing; press BREAK to abort a waiting `LOAD`.
 
 ## Build
 

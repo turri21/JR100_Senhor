@@ -12,7 +12,7 @@
 - 実機準拠のビデオタイミング: ドットクロック7.15909MHz、水平15.980kHz／垂直62.4Hz（JR-100独自のNTSC規格外フォーマット）。MiSTerスケーラが処理
 - PS/2キーボード（9×5行列全キー）、ジョイスティック（`$CC02`、active-high）
 - BEEP音声（出力帯域制御つき。VIA内部動作は帯域制御の影響を受けません）
-- OSDからのPROGコンテナ（`.prg` v1/v2）と BASICテキスト（`.bas`）のロード
+- OSDからのPROGコンテナ（`.prg` v1/v2）と BASICテキスト（`.bas`）のロード、マウントしたファイルへのBASICプログラム保存
 - 拡張RAM 16KiB（`4000-7FFF`、OSD選択・リセット時反映）
 
 SuperStation One で動作確認済み（キーボード: ELECOM TK-FCM077PBK、コントローラ: Xbox One）。
@@ -37,6 +37,17 @@ python3 tools/prog2rom.py jr100rom.prg boot.rom
 
 - `.prg`（PROG v1/v2コンテナ）: OSD →「Load PRG」。バイナリセクションは指定アドレスへ、BASICセクションは `0246` へロードされワークポインタも設定済み（そのまま `LIST`/`RUN` 可能）
 - `.bas`（BASICテキスト）: OSD →「Load BAS」。各行を ASCII テキストのまま（大文字化、`\xx` 16進エスケープ対応）`0246` へロードし、ワークポインタも設定済み（そのまま `LIST`/`RUN` 可能）。オフライン変換用の `tools/bas2prg.py` も引き続き利用可能
+- BASIC＋機械語のハイブリッド: `python3 tools/bas2prg.py game.bas game.prg --bin 1000:routine.bin`（`--bin ADDR:FILE` は複数指定可）で1つのPROG v2にまとめ、「Load PRG」でロード後 `USR($1000)` で呼び出せます
+
+## プログラムの保存
+
+カセットの `SAVE` コマンドの代わりに、OSDから現在のBASICプログラムをファイルへ保存できます。
+
+1. 空のセーブファイルを一度作成: `python3 tools/make_save_file.py mywork.prg`（16KiB。512の倍数なら任意サイズ可）→ `games/JR100/` に配置
+2. OSD →「Mount Save File」でマウント
+3. 保存したいタイミングで OSD →「Save BASIC to file」。ファイルは通常のPROG v2コンテナになるので、「Load PRG」（やエミュレータ）でそのまま再ロードできます
+
+BASICで `LOAD`/`SAVE` と打った場合はカセットルーチンが空回りします（待ち状態の `LOAD` はBREAKで中断）。
 
 ## ビルド
 

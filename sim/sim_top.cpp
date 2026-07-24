@@ -55,6 +55,8 @@ int main(int argc, char** argv) {
     const char* frame_path = nullptr;
     const char* prg_path = nullptr;
     const char* bas_path = nullptr;
+    const char* save_path = nullptr;
+    uint64_t save_size = 16384;
     const char* audio_path = nullptr;
     const char* program_name = "jr100-boot";
     uint64_t max_cycles = 600000;
@@ -76,6 +78,8 @@ int main(int argc, char** argv) {
         else if (arg == "--frame") frame_path = next();
         else if (arg == "--prg") prg_path = next();
         else if (arg == "--bas") bas_path = next();
+        else if (arg == "--save-file") save_path = next();
+        else if (arg == "--save-size") save_size = strtoull(next(), nullptr, 10);
         else if (arg == "--ext-ram") ext_ram = true;
         else if (arg == "--audio") audio_path = next();
         else if (arg == "--joy") joy = parse_hex(next());
@@ -136,6 +140,12 @@ int main(int argc, char** argv) {
     top->bas_download = 0;
     top->bas_wr = 0;
     top->bas_data = 0;
+    top->save_req = 0;
+    top->img_mounted = 0;
+    top->img_readonly = 0;
+    top->img_size = 0;
+    top->sd_ack = 0;
+    top->sd_buff_addr = 0;
     top->ext_ram_en = ext_ram ? 1 : 0;
     top->clk = 0; top->eval();
     tick();
@@ -245,6 +255,48 @@ int main(int argc, char** argv) {
         fclose(fp);
         top->bas_download = 0;
         for (int i = 0; i < 128; ++i) tick();   // drain terminator+finaliser
+    }
+
+    if (save_path) {
+        // Emulate the hps_io side of the S0 slot: mount an image of
+        // save_size bytes, trigger the saver, and capture each 512-byte
+        // sector write (sd_buff_din is one clk behind sd_buff_addr, as
+        // with the 2-port buffer RAM hps_io expects).
+        std::vector<uint8_t> image(save_size, 0xEE);   // stale-content marker
+        top->img_size = save_size;
+        top->img_mounted = 1;
+        tick();
+        top->img_mounted = 0;
+        top->save_req = 1;
+        tick();
+        top->save_req = 0;
+        uint64_t guard = 400ULL * 1024ULL * 1024ULL / 64ULL;
+        bool active = true;
+        while (active && guard--) {
+            top->eval();
+            if (top->sd_wr) {
+                const uint64_t base = static_cast<uint64_t>(top->sd_lba) * 512ULL;
+                top->sd_ack = 1;
+                tick();
+                for (uint32_t j = 0; j < 512; ++j) {
+                    top->sd_buff_addr = j;
+                    top->eval();
+                    tick();
+                    if (base + j < image.size())
+                        image[base + j] = top->sd_buff_din;
+                }
+                top->sd_ack = 0;
+                tick();
+            } else {
+                tick();
+            }
+            const auto* r = top->rootp;
+            if (!r->jr100_top__DOT__saver__DOT__state && !top->sd_wr) active = false;
+        }
+        FILE* fp = fopen(save_path, "wb");
+        if (!fp) { fprintf(stderr, "error: cannot open %s\n", save_path); return 2; }
+        fwrite(image.data(), 1, image.size(), fp);
+        fclose(fp);
     }
 
     if (frame_path) {
