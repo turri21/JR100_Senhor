@@ -9,6 +9,11 @@
 #  exactly what the reference emulator would place at 0246; the core's
 #  RTL loader then performs the same workspace finalisation.
 #
+#  Hybrid BASIC + machine-language programs: each --bin ADDR:FILE adds
+#  a PBIN section that loads FILE at hex address ADDR, e.g.
+#      bas2prg.py game.bas game.prg --bin 1000:routine.bin
+#  The BASIC side then reaches the code with USR($1000) etc.
+#
 #  Copyright (C) 2026 Zabaglione
 #  SPDX-License-Identifier: GPL-2.0-or-later
 #
@@ -47,10 +52,27 @@ class _RecordingMemory:
         return self.data.get(address & 0xFFFF, 0)
 
 
+def parse_bin_spec(spec: str) -> tuple[int, Path]:
+    addr_text, _, file_text = spec.partition(":")
+    if not file_text:
+        raise argparse.ArgumentTypeError(f"--bin needs ADDR:FILE, got {spec!r}")
+    try:
+        addr = int(addr_text, 16)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"bad hex address in {spec!r}") from exc
+    if not 0 <= addr <= 0xFFFF:
+        raise argparse.ArgumentTypeError(f"address out of range in {spec!r}")
+    return addr, Path(file_text)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("bas", help="input BASIC text file")
     parser.add_argument("out", help="output .prg (PROG v2) file")
+    parser.add_argument(
+        "--bin", metavar="ADDR:FILE", type=parse_bin_spec, action="append",
+        default=[],
+        help="add a PBIN section loading FILE at hex ADDR (repeatable)")
     args = parser.parse_args()
 
     memory = _RecordingMemory()
@@ -66,8 +88,22 @@ def main() -> int:
         + struct.pack("<II", 0x4D414E50, len(pnam)) + pnam   # PNAM
         + struct.pack("<II", 0x53414250, len(pbas)) + pbas   # PBAS
     )
+    for addr, bin_path in args.bin:
+        data = bin_path.read_bytes()
+        if not data:
+            print(f"error: {bin_path} is empty", file=sys.stderr)
+            return 1
+        if addr + len(data) > 0x10000:
+            print(f"error: {bin_path} exceeds address space at {addr:04X}",
+                  file=sys.stderr)
+            return 1
+        pbin = struct.pack("<II", addr, len(data)) + data
+        container += struct.pack("<II", 0x4E494250, len(pbin)) + pbin  # PBIN
+        print(f"  PBIN {addr:04X}-{addr + len(data) - 1:04X} "
+              f"({len(data)} bytes from {bin_path})")
     Path(args.out).write_bytes(container)
-    print(f"wrote {args.out}: {len(container)} bytes (BASIC {len(payload)} bytes)")
+    print(f"wrote {args.out}: {len(container)} bytes (BASIC {len(payload)} bytes,"
+          f" {len(args.bin)} binary section(s))")
     return 0
 
 
