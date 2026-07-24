@@ -40,6 +40,8 @@ TOP_RTL := ../rtl/cpu/mb8861.sv ../rtl/jr100/jr100_via.sv \
            ../rtl/jr100/jr100_mem.sv ../rtl/jr100/jr100_loader.sv \
            ../rtl/jr100/jr100_bas_loader.sv \
            ../rtl/jr100/jr100_saver.sv \
+           ../rtl/jr100/jr100_cmt.sv \
+           ../rtl/jr100/jr100_tape_buf.sv \
            ../rtl/jr100/jr100_top.sv
 
 obj_dir/Vjr100_top: $(TOP_RTL) sim_top.cpp Makefile

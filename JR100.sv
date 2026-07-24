@@ -70,6 +70,9 @@ localparam CONF_STR = {
 	"S0,prg,Mount Save File;",
 	"T[3],Save BASIC to file;",
 	"-;",
+	"S1,cmt,Mount Tape;",
+	"T[4],Tape Play;",
+	"-;",
 	"O[122:121],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O[2],Extended RAM (reset),Off,On;",
 	"-;",
@@ -90,7 +93,7 @@ wire        ioctl_wr;
 wire [26:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
 
-hps_io #(.CONF_STR(CONF_STR)) hps_io
+hps_io #(.CONF_STR(CONF_STR), .VDNUM(2)) hps_io
 (
 	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
@@ -116,30 +119,40 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	.img_mounted(img_mounted),
 	.img_readonly(img_readonly),
 	.img_size(img_size),
-	.sd_lba('{sd_lba}),
-	.sd_blk_cnt('{6'd0}),
-	.sd_rd(1'b0),
-	.sd_wr(sd_wr),
-	.sd_ack(sd_ack),
+	.sd_lba('{sd_lba, sd1_lba}),
+	.sd_blk_cnt('{6'd0, 6'd0}),
+	.sd_rd({sd1_rd, 1'b0}),
+	.sd_wr({sd1_wr, sd_wr}),
+	.sd_ack({sd1_ack, sd_ack}),
 	.sd_buff_addr(sd_buff_addr),
-	.sd_buff_din('{sd_buff_din})
+	.sd_buff_dout(sd_buff_dout),
+	.sd_buff_wr(sd_buff_wr),
+	.sd_buff_din('{sd_buff_din, sd1_buff_din})
 );
 
-wire        img_mounted;
+wire  [1:0] img_mounted;
 wire        img_readonly;
 wire [63:0] img_size;
 wire [31:0] sd_lba;
 wire        sd_wr;
-wire        sd_ack;
+wire  [1:0] sd_ack;
 wire  [8:0] sd_buff_addr;
+wire  [7:0] sd_buff_dout;
+wire        sd_buff_wr;
 wire  [7:0] sd_buff_din;
+wire [31:0] sd1_lba;
+wire        sd1_rd;
+wire        sd1_wr;
+wire  [7:0] sd1_buff_din;
 
-// OSD "Save BASIC to file": momentary status bit -> one-clk pulse
-reg  save_req;
+// OSD momentary status bits -> one-clk pulses
+reg  save_req, tape_play;
 always @(posedge clk_sys) begin
-	reg old_save;
+	reg old_save, old_play;
 	old_save <= status[3];
 	save_req <= ~old_save & status[3];
+	old_play <= status[4];
+	tape_play <= ~old_play & status[4];
 end
 
 ///////////////////////   CLOCKS   ///////////////////////////////
@@ -213,14 +226,28 @@ jr100_top core
 	.bas_wait     (bas_wait),
 
 	.save_req     (save_req),
-	.img_mounted  (img_mounted),
+	.img_mounted  (img_mounted[0]),
 	.img_readonly (img_readonly),
 	.img_size     (img_size),
 	.sd_lba       (sd_lba),
 	.sd_wr        (sd_wr),
-	.sd_ack       (sd_ack),
+	.sd_ack       (sd_ack[0]),
 	.sd_buff_addr (sd_buff_addr),
 	.sd_buff_din  (sd_buff_din),
+
+	.tape_play    (tape_play),
+	.tape_mounted (img_mounted[1]),
+	.tape_readonly (img_readonly),
+	.tape_size    (img_size),
+	.tape_playing (),
+	.tape_recording (),
+	.sd1_lba      (sd1_lba),
+	.sd1_rd       (sd1_rd),
+	.sd1_wr       (sd1_wr),
+	.sd1_ack      (sd_ack[1]),
+	.sd1_buff_din (sd1_buff_din),
+	.sd_buff_dout (sd_buff_dout),
+	.sd_buff_wr   (sd_buff_wr),
 
 	.key_matrix  (key_matrix),
 	.joy_status  (joy_status),

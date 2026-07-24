@@ -7,6 +7,8 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/jr100/jr100_keyboard.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/jr100/jr100_loader.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/jr100/jr100_bas_loader.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/jr100/jr100_saver.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/jr100/jr100_cmt.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/jr100/jr100_tape_buf.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/jr100/jr100_top.sv
 set_global_assignment -name SDC_FILE JR100.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE JR100.sv

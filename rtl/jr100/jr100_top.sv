@@ -68,9 +68,20 @@ module jr100_top
     output logic        pb7,
     output logic        audio,
 
-    // cassette line (virtual tape deck attaches here)
-    input  logic        cmt_in,
-    output logic        cmt_out,
+    // virtual tape deck (image on the framework's S1 slot)
+    input  logic        tape_play,     // one-clk pulse: start playback
+    input  logic        tape_mounted,  // img_mounted pulse for slot 1
+    input  logic        tape_readonly,
+    input  logic [63:0] tape_size,
+    output logic        tape_playing,
+    output logic        tape_recording,
+    output logic [31:0] sd1_lba,
+    output logic        sd1_rd,
+    output logic        sd1_wr,
+    input  logic        sd1_ack,
+    output logic [7:0]  sd1_buff_din,
+    input  logic [7:0]  sd_buff_dout,
+    input  logic        sd_buff_wr,
 
     // video
     output logic        vid_pixel,
@@ -172,8 +183,8 @@ module jr100_top
         .ext_ram_en (ext_ram_eff),
         .pb7        (pb7),
         .snd        (snd),
-        .cmt_in     (cmt_in),
-        .cmt_out    (cmt_out),
+        .cmt_in     (deck_out),
+        .cmt_out    (deck_in),
         .cen_vid    (cen_pix),
         .vid_addr   (vid_addr),
         .vid_rdata  (vid_rdata),
@@ -241,6 +252,71 @@ module jr100_top
         .mem_we   (bas_mem_we),
         .mem_addr (bas_mem_addr),
         .mem_data (bas_mem_data)
+    );
+
+    // ------------------------------------------------------------------
+    // Virtual tape deck + image bridge (S1 slot)
+    // ------------------------------------------------------------------
+    logic deck_out /* verilator public_flat_rd */;
+    logic deck_in /* verilator public_flat_rd */;
+    logic        tape_ok, tape_writable;
+    logic        t_rd_req, t_rd_ack, t_wr_req, t_wr_ack;
+    logic [31:0] t_rd_pos, t_wr_pos;
+    logic [7:0]  t_rd_data, t_wr_data;
+    logic        rec_prev, rec_flush;
+
+    jr100_cmt cmt_deck
+    (
+        .clk         (clk),
+        .rst         (rst),
+        .cen         (cen_cpu),
+        .play_req    (tape_play),
+        .tape_ok     (tape_ok),
+        .cmt_out     (deck_out),
+        .cmt_in      (deck_in),
+        .play_active (tape_playing),
+        .rec_active  (tape_recording),
+        .rd_req      (t_rd_req),
+        .rd_pos      (t_rd_pos),
+        .rd_data     (t_rd_data),
+        .rd_ack      (t_rd_ack),
+        .wr_req      (t_wr_req),
+        .wr_pos      (t_wr_pos),
+        .wr_data     (t_wr_data),
+        .wr_ack      (t_wr_ack)
+    );
+
+    always_ff @(posedge clk) begin
+        rec_prev  <= tape_recording;
+        rec_flush <= rec_prev & ~tape_recording;
+    end
+
+    jr100_tape_buf tape_buf
+    (
+        .clk          (clk),
+        .rst          (rst),
+        .img_mounted  (tape_mounted),
+        .img_readonly (tape_readonly),
+        .img_size     (tape_size),
+        .tape_ok      (tape_ok),
+        .tape_writable (tape_writable),
+        .rd_req       (t_rd_req),
+        .rd_pos       (t_rd_pos),
+        .rd_data      (t_rd_data),
+        .rd_ack       (t_rd_ack),
+        .wr_req       (t_wr_req),
+        .wr_pos       (t_wr_pos),
+        .wr_data      (t_wr_data),
+        .wr_ack       (t_wr_ack),
+        .flush        (rec_flush),
+        .sd_lba       (sd1_lba),
+        .sd_rd        (sd1_rd),
+        .sd_wr        (sd1_wr),
+        .sd_ack       (sd1_ack),
+        .sd_buff_addr (sd_buff_addr),
+        .sd_buff_dout (sd_buff_dout),
+        .sd_buff_wr   (sd_buff_wr),
+        .sd_buff_din  (sd1_buff_din)
     );
 
     logic [15:0] sav_mem_addr;

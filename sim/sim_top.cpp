@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -57,6 +58,13 @@ int main(int argc, char** argv) {
     const char* bas_path = nullptr;
     const char* save_path = nullptr;
     uint64_t save_size = 16384;
+    const char* tape_path = nullptr;
+    const char* tape_out_path = nullptr;
+    uint64_t tape_blank = 0;        // create a zero image of this size
+    uint64_t tape_play_at = 0;      // CPU cycle to pulse tape_play
+    uint64_t cycles2 = 0;           // extra run after the load blocks
+    struct KeyEvent { uint64_t cycle; int idx; int level; };
+    std::vector<KeyEvent> key_events;
     const char* audio_path = nullptr;
     const char* program_name = "jr100-boot";
     uint64_t max_cycles = 600000;
@@ -80,6 +88,22 @@ int main(int argc, char** argv) {
         else if (arg == "--bas") bas_path = next();
         else if (arg == "--save-file") save_path = next();
         else if (arg == "--save-size") save_size = strtoull(next(), nullptr, 10);
+        else if (arg == "--tape") tape_path = next();
+        else if (arg == "--tape-out") tape_out_path = next();
+        else if (arg == "--tape-blank") tape_blank = strtoull(next(), nullptr, 10);
+        else if (arg == "--tape-play-at") tape_play_at = strtoull(next(), nullptr, 10);
+        else if (arg == "--cycles2") cycles2 = strtoull(next(), nullptr, 10);
+        else if (arg == "--key") {
+            // CYCLE:IDX:LEVEL (matrix bit index = row*5 + col)
+            KeyEvent ev{};
+            if (sscanf(next(), "%llu:%d:%d",
+                       reinterpret_cast<unsigned long long*>(&ev.cycle),
+                       &ev.idx, &ev.level) != 3 || ev.idx < 0 || ev.idx > 44) {
+                fprintf(stderr, "error: bad --key spec\n");
+                return 2;
+            }
+            key_events.push_back(ev);
+        }
         else if (arg == "--ext-ram") ext_ram = true;
         else if (arg == "--audio") audio_path = next();
         else if (arg == "--joy") joy = parse_hex(next());
@@ -145,7 +169,13 @@ int main(int argc, char** argv) {
     top->img_readonly = 0;
     top->img_size = 0;
     top->sd_ack = 0;
-    top->cmt_in = 0;
+    top->tape_play = 0;
+    top->tape_mounted = 0;
+    top->tape_readonly = 0;
+    top->tape_size = 0;
+    top->sd1_ack = 0;
+    top->sd_buff_dout = 0;
+    top->sd_buff_wr = 0;
     top->sd_buff_addr = 0;
     top->ext_ram_en = ext_ram ? 1 : 0;
     top->clk = 0; top->eval();
@@ -177,9 +207,118 @@ int main(int argc, char** argv) {
         audio_fp = fopen(audio_path, "w");
         if (!audio_fp) { fprintf(stderr, "error: cannot open %s\n", audio_path); return 2; }
     }
+    // Virtual tape (S1 slot): load or create the image and mount it.
+    std::vector<uint8_t> tape;
+    if (tape_path) {
+        FILE* fp = fopen(tape_path, "rb");
+        if (fp) {
+            fseek(fp, 0, SEEK_END);
+            long sz = ftell(fp);
+            fseek(fp, 0, SEEK_SET);
+            tape.resize(static_cast<size_t>(sz));
+            if (fread(tape.data(), 1, tape.size(), fp) != tape.size()) {
+                fprintf(stderr, "error: short read on %s\n", tape_path);
+                return 2;
+            }
+            fclose(fp);
+        } else if (tape_blank) {
+            tape.assign(static_cast<size_t>(tape_blank), 0x00);
+        } else {
+            fprintf(stderr, "error: cannot open %s\n", tape_path);
+            return 2;
+        }
+        top->tape_size = tape.size();
+        top->tape_mounted = 1;
+        tick();
+        top->tape_mounted = 0;
+    }
+    std::sort(key_events.begin(), key_events.end(),
+              [](const KeyEvent& a, const KeyEvent& b) { return a.cycle < b.cycle; });
+    size_t key_next = 0;
+    uint64_t key_bits = 0;
+    // harness-side hps_io emulation for the tape slot
+    int sd1_state = 0;      // 0 idle, 1 read stream, 2 write stream
+    uint32_t sd1_idx = 0;
+    uint64_t sd1_base = 0;
+    bool play_pulsed = false;
+
+    auto service_events = [&]() {
+        // scheduled key-matrix events
+        while (key_next < key_events.size() &&
+               key_events[key_next].cycle <= cpu_cycles) {
+            const KeyEvent& ev = key_events[key_next++];
+            if (ev.level) key_bits |= (1ULL << ev.idx);
+            else          key_bits &= ~(1ULL << ev.idx);
+            top->key_matrix = key_bits;
+        }
+        // tape playback trigger
+        if (tape_play_at && !play_pulsed && cpu_cycles >= tape_play_at) {
+            top->tape_play = 1;
+            play_pulsed = true;
+        } else {
+            top->tape_play = 0;
+        }
+        // tape slot block protocol
+        if (!tape.empty()) {
+            switch (sd1_state) {
+            case 0:
+                if (top->sd1_rd) {
+                    sd1_base = static_cast<uint64_t>(top->sd1_lba) * 512ULL;
+                    top->sd1_ack = 1;
+                    sd1_idx = 0;
+                    sd1_state = 1;
+                } else if (top->sd1_wr) {
+                    sd1_base = static_cast<uint64_t>(top->sd1_lba) * 512ULL;
+                    top->sd1_ack = 1;
+                    sd1_idx = 0;
+                    sd1_state = 2;
+                }
+                break;
+            case 1:
+                if (sd1_idx < 512) {
+                    top->sd_buff_addr = sd1_idx & 0x1FF;
+                    top->sd_buff_dout =
+                        (sd1_base + sd1_idx < tape.size()) ?
+                        tape[sd1_base + sd1_idx] : 0x00;
+                    top->sd_buff_wr = 1;
+                    ++sd1_idx;
+                } else {
+                    top->sd_buff_wr = 0;
+                    top->sd1_ack = 0;
+                    sd1_state = 0;
+                }
+                break;
+            case 2:
+                // sd1_buff_din is registered on sd_buff_addr
+                if (sd1_idx > 0 && sd1_idx <= 512 &&
+                    sd1_base + sd1_idx - 1 < tape.size())
+                    tape[sd1_base + sd1_idx - 1] = top->sd1_buff_din;
+                if (sd1_idx < 512) {
+                    top->sd_buff_addr = sd1_idx & 0x1FF;
+                    ++sd1_idx;
+                } else if (sd1_idx == 512) {
+                    ++sd1_idx;      // final capture next iteration
+                } else {
+                    if (getenv("JR100_CMT_DEBUG")) {
+                        unsigned sum = 0;
+                        for (int k = 0; k < 512; ++k)
+                            if (sd1_base + k < tape.size()) sum += tape[sd1_base + k];
+                        fprintf(stderr, "sd1 WR sector %llu sum=%u first=%02X %02X %02X\n",
+                                (unsigned long long)(sd1_base / 512), sum,
+                                tape[sd1_base], tape[sd1_base+1], tape[sd1_base+2]);
+                    }
+                    top->sd1_ack = 0;
+                    sd1_state = 0;
+                }
+                break;
+            }
+        }
+    };
+
     const uint64_t hard_limit = (max_cycles + 100) * 64ULL * 4ULL;
     uint64_t fast = 0;
     while (fast++ < hard_limit) {
+        service_events();
         top->eval();
         if (top->cen_cpu_out && top->boundary && cpu_cycles > 0) {
             if (!epoch_seen) {
@@ -215,6 +354,8 @@ int main(int argc, char** argv) {
     }
     if (audio_fp) fclose(audio_fp);
     if (trace) fclose(trace);
+
+
 
     if (prg_path) {
         // Stream a PROG container through the PRG loader (CPU frozen by
@@ -258,6 +399,37 @@ int main(int argc, char** argv) {
         for (int i = 0; i < 128; ++i) tick();   // drain terminator+finaliser
     }
 
+    if (cycles2) {
+        // post-load run: keyboard/tape events live here (typing SAVE or
+        // LOAD at the READY prompt, then the tape deck does its work)
+        const uint64_t target = cpu_cycles + cycles2;
+        while (cpu_cycles < target) {
+            service_events();
+            top->eval();
+            const bool cen2 = top->cen_cpu_out;
+            tick();
+            if (cen2) ++cpu_cycles;
+        }
+    }
+
+    if (getenv("JR100_CMT_DEBUG")) {
+        const auto* r = top->rootp;
+        fprintf(stderr, "cmt: session=%d wr_pos=%u run_cnt=%u pstate=%d rstate=%d bstate=%d deck_in=%d deck_out=%d rec=%d\n",
+                (int)r->jr100_top__DOT__cmt_deck__DOT__session,
+                (unsigned)r->jr100_top__DOT__cmt_deck__DOT__wr_pos,
+                (unsigned)r->jr100_top__DOT__cmt_deck__DOT__run_cnt,
+                (int)r->jr100_top__DOT__cmt_deck__DOT__pstate,
+                (int)r->jr100_top__DOT__cmt_deck__DOT__rstate,
+                (int)r->jr100_top__DOT__tape_buf__DOT__bstate,
+                (int)r->jr100_top__DOT__deck_in,
+                (int)r->jr100_top__DOT__deck_out,
+                (int)top->tape_recording);
+        fprintf(stderr, "buf: stores=%u drops=%u flushes=%u\n",
+                (unsigned)r->jr100_top__DOT__tape_buf__DOT__dbg_stores,
+                (unsigned)r->jr100_top__DOT__tape_buf__DOT__dbg_drops,
+                (unsigned)r->jr100_top__DOT__tape_buf__DOT__dbg_flushes);
+    }
+
     if (save_path) {
         // Emulate the hps_io side of the S0 slot: mount an image of
         // save_size bytes, trigger the saver, and capture each 512-byte
@@ -287,7 +459,13 @@ int main(int argc, char** argv) {
                         image[base + j] = top->sd_buff_din;
                 }
                 top->sd_ack = 0;
-    top->cmt_in = 0;
+    top->tape_play = 0;
+    top->tape_mounted = 0;
+    top->tape_readonly = 0;
+    top->tape_size = 0;
+    top->sd1_ack = 0;
+    top->sd_buff_dout = 0;
+    top->sd_buff_wr = 0;
                 tick();
             } else {
                 tick();
@@ -351,6 +529,13 @@ int main(int argc, char** argv) {
                 fputc('\n', fp);
             }
         }
+        fclose(fp);
+    }
+
+    if (!tape.empty() && tape_out_path) {
+        FILE* fp = fopen(tape_out_path, "wb");
+        if (!fp) { fprintf(stderr, "error: cannot open %s\n", tape_out_path); return 2; }
+        fwrite(tape.data(), 1, tape.size(), fp);
         fclose(fp);
     }
 

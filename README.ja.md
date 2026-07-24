@@ -13,6 +13,7 @@
 - PS/2キーボード（9×5行列全キー）、ジョイスティック（`$CC02`、active-high）
 - BEEP音声（出力帯域制御つき。VIA内部動作は帯域制御の影響を受けません）
 - OSDからのPROGコンテナ（`.prg` v1/v2）と BASICテキスト（`.bas`）のロード、マウントしたファイルへのBASICプログラム保存
+- 仮想テープデッキ: マウントした `.cmt` テープに対してROMの本物の `SAVE`/`LOAD` コマンドが動作（実機同様のVIA経由600ボーFSK）
 - 拡張RAM 16KiB（`4000-7FFF`、OSD選択・リセット時反映）
 
 SuperStation One で動作確認済み（キーボード: ELECOM TK-FCM077PBK、コントローラ: Xbox One）。
@@ -47,7 +48,15 @@ python3 tools/prog2rom.py jr100rom.prg boot.rom
 2. OSD →「Mount Save File」でマウント
 3. 保存したいタイミングで OSD →「Save BASIC to file」。ファイルは通常のPROG v2コンテナになるので、「Load PRG」（やエミュレータ）でそのまま再ロードできます
 
-BASICで `LOAD`/`SAVE` と打った場合はカセットルーチンが空回りします（待ち状態の `LOAD` はBREAKで中断）。
+## カセットテープ（本物のSAVE/LOADコマンド）
+
+実機と同じVIA配線（出力=CB2、入力=CA1+CB1）の仮想テープデッキを搭載しており、ROMの `SAVE`/`LOAD`/`MSAVE`/`MLOAD`/`VERIFY` コマンドが実機同様の600ボーで動作します。
+
+1. 空テープを一度作成: `python3 tools/make_tape.py mytape.cmt` → `games/JR100/` に配置 → OSD →「Mount Tape」
+2. BASICで `SAVE` と打つだけで録音されます（デッキは常時録音待機。テープは毎回先頭から書き直し。リーダ音込みで小プログラム約20秒＝実機どおり）
+3. ロードは `LOAD` と打ってから OSD →「Tape Play」。デッキがリーダとFSK波形を再生成し、復調はROM自身が行います
+
+`.cmt` ファイルはテープ上のバイト列そのもの（33バイトヘッダ+データ+チェックサム）で、FSK変調とリーダはデッキが生成します。
 
 ## ビルド
 
