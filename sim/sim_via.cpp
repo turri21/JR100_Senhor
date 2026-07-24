@@ -46,6 +46,7 @@ int main(int argc, char** argv) {
 
     uint64_t total = 0;
     std::map<uint64_t, std::vector<Op>> ops;
+    std::map<uint64_t, std::vector<std::pair<bool,bool>>> edges;  // (is_ca1, level)
     {
         std::ifstream in(scenario_path);
         if (!in) {
@@ -61,6 +62,12 @@ int main(int argc, char** argv) {
             if (!(ss >> kind)) continue;
             if (kind == "N") {
                 ss >> total;
+            } else if (kind == "E") {
+                uint64_t cycle;
+                std::string line_s;
+                int state;
+                ss >> cycle >> line_s >> state;
+                edges[cycle].push_back({line_s == "A" || line_s == "a", state != 0});
             } else if (kind == "W" || kind == "R") {
                 uint64_t cycle;
                 std::string reg_s, val_s;
@@ -89,6 +96,8 @@ int main(int argc, char** argv) {
     top->reg_addr = 0;
     top->wdata = 0;
     top->key_matrix = 0;
+    top->ca1_in = 0;
+    top->cb1_in = 0;
     top->clk = 0; top->eval();
     top->clk = 1; top->eval();
     top->rst = 0;
@@ -98,6 +107,10 @@ int main(int argc, char** argv) {
         // one access per cycle (scenarios schedule at most one)
         top->sel = 0;
         top->we = 0;
+        auto eit = edges.find(k);
+        if (eit != edges.end())
+            for (auto& e : eit->second)
+                (e.first ? top->ca1_in : top->cb1_in) = e.second ? 1 : 0;
         auto it = ops.find(k);
         if (it != ops.end() && !it->second.empty()) {
             const Op& op = it->second.front();
@@ -116,10 +129,10 @@ int main(int argc, char** argv) {
         const int irq = top->irq ? 1 : 0;
         const int pb7 = top->pb7_out ? 1 : 0;
         fprintf(out,
-                "C %llu t1=%04X t2=%04X ifr=%02X ier=%02X pb7=%d pb6=%d irq=%d\n",
+                "C %llu t1=%04X t2=%04X ifr=%02X ier=%02X pb7=%d pb6=%d irq=%d cb2=%d\n",
                 static_cast<unsigned long long>(k),
                 top->dbg_t1, top->dbg_t2, top->dbg_ifr, top->dbg_ier & 0x7F,
-                pb7, top->dbg_pb6 ? 1 : 0, irq);
+                pb7, top->dbg_pb6 ? 1 : 0, irq, top->cb2 ? 1 : 0);
     }
 
     fclose(out);

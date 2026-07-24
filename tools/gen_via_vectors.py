@@ -11,6 +11,7 @@
 #      N <total-cycles>
 #      W <cycle> <reg-hex> <value-hex>
 #      R <cycle> <reg-hex>
+#      E <cycle> <A|B> <0|1>      (CA1 / CB1 external line level)
 #
 #  Output line per cycle:
 #      C <k> t1=XXXX t2=XXXX ifr=XX ier=XX pb7=B pb6=B irq=B
@@ -77,6 +78,8 @@ def parse_scenario(path: Path):
             ops.setdefault(int(parts[1]), []).append(("W", int(parts[2], 16), int(parts[3], 16)))
         elif parts[0] == "R":
             ops.setdefault(int(parts[1]), []).append(("R", int(parts[2], 16), 0))
+        elif parts[0] == "E":
+            ops.setdefault(int(parts[1]), []).append(("E", parts[2].upper(), int(parts[3])))
         else:
             raise ValueError(f"bad scenario line: {raw}")
     return total, ops
@@ -100,6 +103,11 @@ def main() -> int:
         for op, reg, value in ops.get(k, []):
             if op == "W":
                 via.store8(0xC800 + reg, value)
+            elif op == "E":
+                if reg == "A":
+                    via.set_ca1(value)
+                else:
+                    via.set_cb1(value)
             else:
                 via.load8(0xC800 + reg)
         state = via._state  # noqa: SLF001
@@ -108,6 +116,7 @@ def main() -> int:
             f"C {k} t1={state.timer1 & 0xFFFF:04X} t2={state.timer2 & 0xFFFF:04X}"
             f" ifr={state.IFR & 0xFF:02X} ier={state.IER & 0x7F:02X}"
             f" pb7={via.input_port_b_bit(7)} pb6={via.input_port_b_bit(6)} irq={irq}"
+            f" cb2={state.CB2_out & 1}"
         )
 
     Path(args.out).write_text("\n".join(lines) + "\n", encoding="utf-8")

@@ -68,6 +68,10 @@ module jr100_top
     output logic        pb7,
     output logic        audio,
 
+    // cassette line (virtual tape deck attaches here)
+    input  logic        cmt_in,
+    output logic        cmt_out,
+
     // video
     output logic        vid_pixel,
     output logic        vid_de,
@@ -168,6 +172,8 @@ module jr100_top
         .ext_ram_en (ext_ram_eff),
         .pb7        (pb7),
         .snd        (snd),
+        .cmt_in     (cmt_in),
+        .cmt_out    (cmt_out),
         .cen_vid    (cen_pix),
         .vid_addr   (vid_addr),
         .vid_rdata  (vid_rdata),

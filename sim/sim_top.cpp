@@ -145,6 +145,7 @@ int main(int argc, char** argv) {
     top->img_readonly = 0;
     top->img_size = 0;
     top->sd_ack = 0;
+    top->cmt_in = 0;
     top->sd_buff_addr = 0;
     top->ext_ram_en = ext_ram ? 1 : 0;
     top->clk = 0; top->eval();
@@ -286,6 +287,7 @@ int main(int argc, char** argv) {
                         image[base + j] = top->sd_buff_din;
                 }
                 top->sd_ack = 0;
+    top->cmt_in = 0;
                 tick();
             } else {
                 tick();

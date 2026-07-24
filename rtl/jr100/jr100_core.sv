@@ -52,6 +52,10 @@ module jr100_core
     output logic        pb7,
     output logic        snd,
 
+    // cassette line (input feeds VIA CA1+CB1, output is VIA CB2)
+    input  logic        cmt_in,
+    output logic        cmt_out,
+
     // video (second read port into the shared address space)
     input  logic        cen_vid,
     output logic [15:0] vid_addr,
@@ -153,6 +157,9 @@ module jr100_core
         .irq        (via_irq),
         .pb7_out    (pb7),
         .snd_out    (snd),
+        .ca1_in     (cmt_in),
+        .cb1_in     (cmt_in),
+        .cb2        (cmt_out),
         .font_user  (via_font_user),
         .dbg_pb6    (),
         .dbg_ora    (dbg_ora),

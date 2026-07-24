@@ -1,0 +1,41 @@
+# CMT input path as the ROM's LOAD routine programs it: the cassette
+# line feeds CA1 (falling edge, PCR0=0) and CB1 (rising edge, PCR4=1),
+# T2 measures the interval between edges, IER=$92 enables both.
+# Edge pairs simulate 2400Hz half-cycles (186) and 1200Hz (373, longer
+# than T2=$0107=263 so the T2 timeout flag separates the two tones).
+N 1800
+W 5 B 00
+W 10 C FE
+W 15 E 92
+W 20 8 07
+W 25 9 01
+# leader-ish 2400Hz half-cycles
+E 100 A 1
+E 100 B 1
+W 104 D FF
+E 286 A 0
+E 286 B 0
+W 290 D FF
+W 294 9 01
+E 472 A 1
+E 472 B 1
+W 476 D FF
+W 480 9 01
+# 1200Hz half-cycle: T2 ($0107) times out before the next edge
+E 845 A 0
+E 845 B 0
+R 849 8
+W 853 D FF
+W 857 9 01
+E 1218 A 1
+E 1218 B 1
+W 1222 D FF
+W 1226 9 01
+# back to 2400Hz
+E 1404 A 0
+E 1404 B 0
+W 1408 D FF
+W 1412 9 01
+E 1590 A 1
+E 1590 B 1
+W 1594 D FF

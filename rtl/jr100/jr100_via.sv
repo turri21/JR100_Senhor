@@ -41,6 +41,13 @@ module jr100_via
     input  logic [44:0] key_matrix,
 
     output logic        irq,        // level to CPU
+    // cassette interface: the CMT input line feeds CA1 (falling edge)
+    // and CB1 (rising edge) per the JR-100 wiring; CB2 carries the SR
+    // shift-out waveform (the CMT output).
+    input  logic        ca1_in,
+    input  logic        cb1_in,
+    output logic        cb2,
+
     output logic        pb7_out,    // raw Port B bit 7 view
     output logic        snd_out,    // sound source: toggles on every
                                     // Timer 1 reload, like the reference
@@ -95,6 +102,7 @@ module jr100_via
     logic               shift_tick, shift_started;
     logic [2:0]         shift_cnt;
     logic               cb1_out, cb2_out, ca2_out;
+    logic               ca1_prev = 1'b0, cb1_prev = 1'b0;
     logic signed [2:0]  ca2_timer;   // -1 = inactive
     logic               primed;
 
@@ -433,6 +441,32 @@ module jr100_via
         endcase
     endtask
 
+    // R6522.set_ca1 / set_cb1: external line edges (called by devices
+    // between ticks in the reference; applied after this cycle's tick)
+    task automatic apply_ca1_edge();
+        if (ca1_in != ca1_prev) begin
+            ca1_prev = ca1_in;
+            if ((ca1_in && pcr[0]) || (!ca1_in && !pcr[0])) begin
+                if (acr[0]) ira = in_a(ira, port_a, ddra);
+                ifr = ifr | IFR_CA1;
+                if (!ca2_out && (pcr & 8'h0E) == 8'h08) ca2_out = 1'b1;
+            end
+        end
+    endtask
+
+    task automatic apply_cb1_edge();
+        if (cb1_in != cb1_prev) begin
+            cb1_prev = cb1_in;
+            if ((cb1_in && pcr[4]) || (!cb1_in && !pcr[4])) begin
+                if (acr[1]) irb = in_b(irb, orb, ddrb);
+                if (shift_started && (acr & 8'h1C) == 8'h0C) process_shift_in();
+                if (shift_started && (acr & 8'h1C) == 8'h1C) process_shift_out();
+                ifr = ifr | IFR_CB1;
+                if (!cb2_out && (pcr & 8'hA0) == 8'h20) cb2_out = 1'b1;
+            end
+        end
+    endtask
+
     always_ff @(posedge clk) begin
         if (rst) begin
             // T1/T2 counters+latches and SR are reset-exempt (R6522 RES);
@@ -455,12 +489,17 @@ module jr100_via
                 primed = 1'b1;
             end
             via_tick();
-            // CPU access applies after this cycle's tick
+            // external line edges and the CPU access apply after this
+            // cycle's tick, like the reference's between-tick calls
+            apply_ca1_edge();
+            apply_cb1_edge();
             if (sel) begin
                 if (we) via_store(reg_addr, wdata);
                 else    via_read_effects(reg_addr);
             end
         end
     end
+
+    assign cb2 = cb2_out;
 
 endmodule
