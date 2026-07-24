@@ -8,10 +8,11 @@
 //  counts mirror src/jr100emu/cpu/cpu.py (as of pyjr100emu 9b11a18:
 //  level-sensitive IRQ, I-flag set on interrupt entry, WAI stacks
 //  registers at execution and exits via a 4-cycle vector fetch).
-//  Remaining divergences from real-hardware datasheets (SWI return
-//  address, ADC half-carry, STS flags, NIM/XIM flags) are tracked in
-//  docs/DEVELOPMENT.md and must not be "fixed" here without updating
-//  the reference first (AGENTS.md §7).
+//  SWI return address, ADC half-carry and STS flags follow M68PRM(D)
+//  (fixed together with pyjr100emu 9c5245e). NIM/OIM/XIM flag rules are
+//  MB8861-specific and correct as implemented; the TMM mask-bit flag
+//  condition remains tracked in docs/DEVELOPMENT.md and must not be
+//  "fixed" here without updating the reference first (AGENTS.md §7).
 //
 //  Timing model: one instruction consumes exactly the table cycle count
 //  (docs/generated/opcode_cycles.txt). Bus reads return combinationally
@@ -270,10 +271,11 @@ module mb8861
                 r.res = x ^ y; r.res_we = 1'b1;
                 r.n = r.res[7]; r.z = (r.res == 0); r.v = 1'b0;
             end
-            4'h9: begin // ADC (H ignores carry-in: pyjr100emu quirk)
+            4'h9: begin // ADC (H includes carry-in: M68PRM H = f(X + M + C))
                 sum = {1'b0, x} + {1'b0, y} + {8'b0, cin};
                 r.res = sum[7:0]; r.res_we = 1'b1;
-                r.h = (({1'b0, x[3:0]} + {1'b0, y[3:0]}) > 5'h0F); r.h_we = 1'b1;
+                r.h = (({1'b0, x[3:0]} + {1'b0, y[3:0]} + {4'b0, cin}) > 5'h0F);
+                r.h_we = 1'b1;
                 r.n = sum[7]; r.z = (sum[7:0] == 0);
                 r.v = (pos8(x) & pos8(y) & sum[7]) | (neg8(x) & neg8(y) & ~sum[7]);
                 r.c = sum[8]; r.c_we = 1'b1;
@@ -638,10 +640,9 @@ module mb8861
                                 wai_mode <= 1'b1;
                                 stk      <= 3'd0;
                                 state    <= ST_STK_WR;
-                            end else if (op == 8'h3F) begin     // SWI quirk: extra PC+1
-                                pc    <= pc + 16'd2;
-                                stk   <= 3'd0;
-                                state <= ST_STK_WR;
+                            end else if (op == 8'h3F) begin     // SWI: stacks opcode+1
+                                stk   <= 3'd0;                  // (M68PRM 3.3.3; the
+                                state <= ST_STK_WR;             // fetch's pc+1 stands)
                             end else if (op == 8'h3B) begin     // RTI
                                 stk   <= 3'd0;
                                 state <= ST_STK_RD;
@@ -887,9 +888,14 @@ module mb8861
                 end
 
                 ST_WR2: begin
-                    // STX sets N/Z/V from IX; STS also uses IX
-                    // (pyjr100emu _sts quirk mirrored deliberately).
-                    fn <= ix[15]; fz <= (ix == 0); fv <= 1'b0;
+                    // N/Z/V from the stored value: STX from IX, STS from
+                    // SP (M68PRM: N = SPH7).
+                    if (ir == 8'h9F || ir == 8'hAF || ir == 8'hBF) begin
+                        fn <= sp[15]; fz <= (sp == 0);
+                    end else begin
+                        fn <= ix[15]; fz <= (ix == 0);
+                    end
+                    fv <= 1'b0;
                     state <= ST_PAD;
                 end
 

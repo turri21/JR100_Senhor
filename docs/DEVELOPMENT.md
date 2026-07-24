@@ -39,9 +39,9 @@ HDLは互換性基準である pyjr100emu の挙動を忠実に写している�
 | 1 | ORAB ext (0xFA) | OR を実行 | ORAB は OR | **解決**（pyjr100emu `9b11a18` で修正、HDL追随） |
 | 2 | NEG の C フラグ | C = (オペランド ≠ 0) | 同左 | **解決**（同上） |
 | 3 | NMI/IRQ エントリ | I フラグをセットする。IRQ はレベルセンシティブ入力 | 同左 | **解決**（同上。あわせて WAI は命令実行時にレジスタ退避し、WAI 経由の割込みエントリは退避なし4サイクルに変更） |
-| 4 | SWI の戻りアドレス | opcode+2 を push | opcode+1（次命令） | **一次資料確認済・要修正** |
-| 5 | ADC の H フラグ | キャリー入力を半桁計算に含めない | 含める | **一次資料確認済・要修正** |
-| 6 | STS のフラグ | N/Z を **IX** から設定 | SP から設定 | **一次資料確認済・要修正** |
+| 4 | SWI の戻りアドレス | opcode+1（次命令）を push | 同左 | **解決**（pyjr100emu `9c5245e` で修正、HDL追随） |
+| 5 | ADC の H フラグ | キャリー入力を含めて計算 | 同左 | **解決**（同上） |
+| 6 | STS のフラグ | N/Z を SP から設定 | 同左 | **解決**（同上） |
 | 7 | NIM/OIM/XIM の N | N = (結果 ≠ 0)（bit7ではない） | 同左（MB8861 固有仕様） | **解決（実装が正しい）** |
 | 8 | XIM の V | V を更新しない（NIM/OIM は V=0) | 同左（MB8861 固有仕様） | **解決（実装が正しい）** |
 | 9 | TMM のフラグ条件 | Bp=0 または **M=0** → Z、**M=$FF** → V、他は N | Bp=0 または **(M∧Bp)=0** → Z、**(M∧Bp)=Bp** → V、他は N（マスクビットで判定） | 未解決（要一次資料） |
@@ -53,7 +53,7 @@ HDLは互換性基準である pyjr100emu の挙動を忠実に写している�
 - **#4 SWI**: §3.3.3「The value saved for the program counter is the address of the SWI instruction, plus one.」付録の動作記述も `PC ← (PC)+0001` → push（PC は opcode 位置基準）。実装は fetch 後にさらに +1 しており opcode+2 を積む。1バイトずれのため SWI を使うソフトの RTI 復帰が壊れる（JR-100 BASIC ROM 起動列では未使用のため実害未観測）。
 - **#5 ADC**: 付録 ADC 頁「H: Set if there was a carry from bit 3」、演算は `ACCX + M + C`。ブール式 `H = X3·M3 + M3·R̄3 + R̄3·X3` は結果ビット R3（キャリー入力込み）を含む。実装は `(X&$0F)+(M&$0F)>$0F` のみで、`(X&$0F)+(M&$0F)=$0F` かつ C=1 のとき実機 H=1 / 実装 H=0 に発散。DAA を併用する BCD 演算に影響。
 - **#6 STS**: 付録 STS 頁「N: Set if the most significant bit of **the stack pointer** is set」「Z: Set if all bits of **the stack pointer** are cleared」、ブール式 `N = SPH7`。実装は IX から N/Z を設定しており誤り（V=0 は正しい）。
-- 修正手順は本節冒頭のとおり ①Python 修正+回帰テスト → ②HDL 追随 → ③ロックステップ再照合。Python 側は参照実装（pyjr100emu / Java 原典 jr100-emulator-v2 とも同一挙動）の修正判断が必要。
+- **修正完了（2026-07-24）**: pyjr100emu `9c5245e`（ユニットテスト5本追加、旧挙動を固定していた STS テストは仕様準拠へ更新）→ HDL 追随（mb8861.sv: SWI の PC+2 上書き削除・ADC H にキャリー入力追加・STS フラグを SP 源に変更）→ 参照トレース再生成のうえロックステップ全再照合（ブート 132,758 サンプル・迷路/sound_scale・IRQ/SWI ゴールデン5本）一致。
 
 **#7/#8 — MB8861 追加命令の資料（Fujitsu MB8861 解説, nkomatsu 氏 IC Collection）で確認:**
 
