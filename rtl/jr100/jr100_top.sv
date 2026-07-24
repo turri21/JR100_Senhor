@@ -107,8 +107,13 @@ module jr100_top
     // Output band limiting (AGENTS.md §3.4): the square wave frequency is
     // 894886.25/(latch1+2)/2 Hz. Against a 48 kHz PCM output (24 kHz
     // Nyquist) it aliases when latch1+2 <= 18, so mute below latch1=17.
-    // Sound is produced only in T1 mode 3 (ACR[7:6]=11, BASIC ACR=E0).
-    assign audio = pb7 && (dbg_acr[7:6] == 2'b11) && (dbg_t1l >= 16'd17);
+    // The tone source is the VIA snd flop (toggled on every Timer 1
+    // reload), matching the reference sound-line model: gated by
+    // ACR[7:6]=11 it sounds even when ACR is written after T1 already
+    // timed out in one-shot mode (BASIC POKE order), where PB7 itself
+    // never toggles.
+    logic snd;
+    assign audio = snd && (dbg_acr[7:6] == 2'b11) && (dbg_t1l >= 16'd17);
     assign cen_pix = (cen_cnt[2:0] == 3'd7);
     assign cen_cpu_out = cen_cpu;
     assign cen_pix_out = cen_pix;
@@ -150,6 +155,7 @@ module jr100_top
         .key_matrix (key_matrix),
         .ext_ram_en (ext_ram_eff),
         .pb7        (pb7),
+        .snd        (snd),
         .cen_vid    (cen_pix),
         .vid_addr   (vid_addr),
         .vid_rdata  (vid_rdata),

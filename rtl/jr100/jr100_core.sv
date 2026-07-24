@@ -50,6 +50,7 @@ module jr100_core
 
     // audio source
     output logic        pb7,
+    output logic        snd,
 
     // video (second read port into the shared address space)
     input  logic        cen_vid,
@@ -151,6 +152,7 @@ module jr100_core
         .key_matrix (key_matrix),
         .irq        (via_irq),
         .pb7_out    (pb7),
+        .snd_out    (snd),
         .font_user  (via_font_user),
         .dbg_pb6    (),
         .dbg_ora    (dbg_ora),

@@ -41,7 +41,13 @@ module jr100_via
     input  logic [44:0] key_matrix,
 
     output logic        irq,        // level to CPU
-    output logic        pb7_out,    // sound source (Timer1 square wave)
+    output logic        pb7_out,    // raw Port B bit 7 view
+    output logic        snd_out,    // sound source: toggles on every
+                                    // Timer 1 reload, like the reference
+                                    // sound-line model (store_t1ch_option
+                                    // runs on each reload, so a tone
+                                    // appears even when ACR is written
+                                    // after T1 already timed out one-shot)
     output logic        font_user,  // Port B bit 5 view (display font select)
     output logic        dbg_pb6,    // Port B bit 6 view (cycle unit tests)
 
@@ -85,6 +91,7 @@ module jr100_via
     logic [15:0]        latch1 = '0, latch2 = '0;
     logic signed [16:0] timer1 = '0, timer2 = '0;
     logic               t1_init, t1_en, t2_init, t2_en;
+    logic               snd = 1'b0;   // output model only, not a VIA register
     logic               shift_tick, shift_started;
     logic [2:0]         shift_cnt;
     logic               cb1_out, cb2_out, ca2_out;
@@ -111,6 +118,7 @@ module jr100_via
     logic [7:0] port_b_view;
     assign port_b_view = (irb & ~ddrb) | (orb & ddrb);
     assign pb7_out   = port_b_view[7];
+    assign snd_out   = snd;
     assign font_user = port_b_view[5];
     assign dbg_pb6   = port_b_view[6];
 
@@ -292,6 +300,7 @@ module jr100_via
                 endcase
             end
             timer1 = {1'b0, latch1};
+            snd = ~snd;   // reference: store_t1ch_option on every reload
         end
 
         // Timer 2 (PB6 edge computed after Timer 1, as in the reference)
