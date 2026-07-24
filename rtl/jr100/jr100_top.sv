@@ -41,6 +41,12 @@ module jr100_top
     input  logic [7:0]  prg_data,
     output logic        prg_wait,
 
+    // BASIC text loader (.bas, CPU frozen while active)
+    input  logic        bas_download,
+    input  logic        bas_wr,
+    input  logic [7:0]  bas_data,
+    output logic        bas_wait,
+
     // JR-100 inputs
     input  logic [44:0] key_matrix,
     input  logic [7:0]  joy_status,   // CC02 value (AGENTS.md §4)
@@ -95,8 +101,8 @@ module jr100_top
         if (rst) cen_cnt <= '0;
         else     cen_cnt <= cen_cnt + 6'd1;
     end
-    logic prg_busy;
-    assign cen_cpu = (cen_cnt == 6'd63) && !cpu_hold && !prg_busy;
+    logic prg_busy, bas_busy;
+    assign cen_cpu = (cen_cnt == 6'd63) && !cpu_hold && !prg_busy && !bas_busy;
 
     // Output band limiting (AGENTS.md §3.4): the square wave frequency is
     // 894886.25/(latch1+2)/2 Hz. Against a 48 kHz PCM output (24 kHz
@@ -195,13 +201,31 @@ module jr100_top
         .mem_data (prg_mem_data)
     );
 
+    logic        bas_mem_we;
+    logic [15:0] bas_mem_addr;
+    logic [7:0]  bas_mem_data;
+
+    jr100_bas_loader bas_loader
+    (
+        .clk      (clk),
+        .rst      (rst),
+        .download (bas_download),
+        .wr       (bas_wr),
+        .data     (bas_data),
+        .wait_req (bas_wait),
+        .busy     (bas_busy),
+        .mem_we   (bas_mem_we),
+        .mem_addr (bas_mem_addr),
+        .mem_data (bas_mem_data)
+    );
+
     jr100_mem mem
     (
         .clk         (clk),
         .rst         (core_rst),
-        .cpu_addr    (prg_busy ? prg_mem_addr : ext_addr),
-        .cpu_wdata   (prg_busy ? prg_mem_data : ext_wdata),
-        .cpu_we      (prg_busy ? prg_mem_we : ext_we),
+        .cpu_addr    (prg_busy ? prg_mem_addr : bas_busy ? bas_mem_addr : ext_addr),
+        .cpu_wdata   (prg_busy ? prg_mem_data : bas_busy ? bas_mem_data : ext_wdata),
+        .cpu_we      (prg_busy ? prg_mem_we : bas_busy ? bas_mem_we : ext_we),
         .cpu_rdata   (ext_rdata),
         .vid_addr    (vid_addr),
         .vid_rdata   (vid_rdata),

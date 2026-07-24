@@ -54,6 +54,7 @@ int main(int argc, char** argv) {
     const char* dump_path = nullptr;
     const char* frame_path = nullptr;
     const char* prg_path = nullptr;
+    const char* bas_path = nullptr;
     const char* audio_path = nullptr;
     const char* program_name = "jr100-boot";
     uint64_t max_cycles = 600000;
@@ -74,6 +75,7 @@ int main(int argc, char** argv) {
         else if (arg == "--dump") dump_path = next();
         else if (arg == "--frame") frame_path = next();
         else if (arg == "--prg") prg_path = next();
+        else if (arg == "--bas") bas_path = next();
         else if (arg == "--ext-ram") ext_ram = true;
         else if (arg == "--audio") audio_path = next();
         else if (arg == "--joy") joy = parse_hex(next());
@@ -131,6 +133,9 @@ int main(int argc, char** argv) {
     top->prg_download = 0;
     top->prg_wr = 0;
     top->prg_data = 0;
+    top->bas_download = 0;
+    top->bas_wr = 0;
+    top->bas_data = 0;
     top->ext_ram_en = ext_ram ? 1 : 0;
     top->clk = 0; top->eval();
     tick();
@@ -220,6 +225,26 @@ int main(int argc, char** argv) {
         fclose(fp);
         top->prg_download = 0;
         for (int i = 0; i < 64; ++i) tick();   // drain the finaliser
+    }
+
+    if (bas_path) {
+        FILE* fp = fopen(bas_path, "rb");
+        if (!fp) { fprintf(stderr, "error: cannot open %s\n", bas_path); return 2; }
+        int c;
+        top->bas_download = 1;
+        tick();
+        while ((c = fgetc(fp)) != EOF) {
+            while (top->bas_wait) tick();
+            top->bas_wr = 1;
+            top->bas_data = static_cast<uint8_t>(c);
+            top->eval();
+            tick();
+            top->bas_wr = 0;
+            tick();
+        }
+        fclose(fp);
+        top->bas_download = 0;
+        for (int i = 0; i < 128; ++i) tick();   // drain terminator+finaliser
     }
 
     if (frame_path) {

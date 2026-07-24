@@ -11,7 +11,7 @@ FPGA re-implementation of the National (Matsushita) JR-100 personal computer (19
 - 32x24 character display (256x192 mono), user-defined characters including the real-hardware shared-VRAM glyphs
 - PS/2 keyboard (full 9x5 matrix), joystick on `$CC02` (active high)
 - BEEP audio with output band limiting (VIA internals never stop)
-- OSD loading of PROG containers (`.prg` v1/v2); convert BASIC text with `tools/bas2prg.py`
+- OSD loading of PROG containers (`.prg` v1/v2) and BASIC text files (`.bas`)
 - Optional 16 KiB extended RAM at `4000-7FFF` (OSD, applied at reset)
 
 Tested on SuperStation One (keyboard: ELECOM TK-FCM077PBK, controller: Xbox One).
@@ -35,7 +35,7 @@ The core auto-loads `boot.rom` at start; the OSD "Load BASIC ROM" entry does the
 ## Loading programs
 
 - `.prg` (PROG v1/v2 containers): OSD → "Load PRG". Binary sections load to their addresses; BASIC sections load at `0246` with workspace pointers set, ready for `LIST`/`RUN`.
-- `.bas` (BASIC text): convert first with `python3 tools/bas2prg.py program.bas program.prg`.
+- `.bas` (BASIC text): OSD → "Load BAS". Lines are tokenised as plain ASCII text (uppercased, `\xx` hex escapes supported) and loaded at `0246` with workspace pointers set, ready for `LIST`/`RUN`. `tools/bas2prg.py` remains available for offline conversion.
 
 ## Build
 

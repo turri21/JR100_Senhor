@@ -11,7 +11,7 @@
 - 32×24文字表示（256×192モノクロ）。ユーザー定義文字は実機のVRAM共有参照（0xA0-0xFF）まで実装
 - PS/2キーボード（9×5行列全キー）、ジョイスティック（`$CC02`、active-high）
 - BEEP音声（出力帯域制御つき。VIA内部動作は帯域制御の影響を受けません）
-- OSDからのPROGコンテナ（`.prg` v1/v2）ロード。BASICテキストは `tools/bas2prg.py` で変換
+- OSDからのPROGコンテナ（`.prg` v1/v2）と BASICテキスト（`.bas`）のロード
 - 拡張RAM 16KiB（`4000-7FFF`、OSD選択・リセット時反映）
 
 SuperStation One で動作確認済み（キーボード: ELECOM TK-FCM077PBK、コントローラ: Xbox One）。
@@ -35,7 +35,7 @@ python3 tools/prog2rom.py jr100rom.prg boot.rom
 ## プログラムのロード
 
 - `.prg`（PROG v1/v2コンテナ）: OSD →「Load PRG」。バイナリセクションは指定アドレスへ、BASICセクションは `0246` へロードされワークポインタも設定済み（そのまま `LIST`/`RUN` 可能）
-- `.bas`（BASICテキスト）: `python3 tools/bas2prg.py program.bas program.prg` で変換してからロード
+- `.bas`（BASICテキスト）: OSD →「Load BAS」。各行を ASCII テキストのまま（大文字化、`\xx` 16進エスケープ対応）`0246` へロードし、ワークポインタも設定済み（そのまま `LIST`/`RUN` 可能）。オフライン変換用の `tools/bas2prg.py` も引き続き利用可能
 
 ## ビルド
 
