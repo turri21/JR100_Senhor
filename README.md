@@ -1,3 +1,8 @@
+-=(JR-100_Senhor notes)=-
+
+Tested: Working Video 720p, 1080p & Sound.
+
+___
 # [National JR-100](https://en.wikipedia.org/wiki/Matsushita_JR_series) for [MiSTer Platform](https://github.com/MiSTer-devel/Main_MiSTer/wiki)
 
 FPGA re-implementation of the National (Matsushita) JR-100 personal computer (1981).
