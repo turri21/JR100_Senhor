@@ -12,7 +12,7 @@
 - 実機準拠のビデオタイミング: ドットクロック7.15909MHz、水平15.980kHz／垂直62.4Hz（JR-100独自のNTSC規格外フォーマット）。MiSTerスケーラが処理
 - PS/2キーボード（9×5行列全キー）、ジョイスティック（`$CC02`、active-high）
 - BEEP音声（出力帯域制御つき。VIA内部動作は帯域制御の影響を受けません）
-- OSDからのPROGコンテナ（`.prg` v1/v2）と BASICテキスト（`.bas`）のロード、マウントしたファイルへのBASICプログラム保存
+- OSDからのPROGコンテナ（`.prg` v1/v2）と BASICテキスト（`.bas`）のロード（オートスタート対応）、マウントしたファイルへのBASICプログラム保存
 - 仮想テープデッキ: マウントした `.cmt` テープに対してROMの本物の `SAVE`/`LOAD` コマンドが動作（実機同様のVIA経由600ボーFSK）
 - 拡張RAM 16KiB（`4000-7FFF`、OSD選択・リセット時反映）
 
@@ -39,6 +39,7 @@ python3 tools/prog2rom.py jr100rom.prg boot.rom
 - `.prg`（PROG v1/v2コンテナ）: OSD →「Load PRG」。バイナリセクションは指定アドレスへ、BASICセクションは `0246` へロードされワークポインタも設定済み（そのまま `LIST`/`RUN` 可能）
 - `.bas`（BASICテキスト）: OSD →「Load BAS」。各行を ASCII テキストのまま（大文字化、`\xx` 16進エスケープ対応）`0246` へロードし、ワークポインタも設定済み（そのまま `LIST`/`RUN` 可能）。オフライン変換用の `tools/bas2prg.py` も引き続き利用可能
 - BASIC＋機械語のハイブリッド: `python3 tools/bas2prg.py game.bas game.prg --bin 1000:routine.bin`（`--bin ADDR:FILE` は複数指定可）で1つのPROG v2にまとめ、「Load PRG」でロード後 `USR($1000)` で呼び出せます
+- オートスタート（OSDオプション・既定OFF）: 「Autostart loaded program」をONにすると、BASICロード後に `RUN`、コンテナにヒントがあれば `A=USR($hhhh)` を自動打鍵します。PROG形式自体にはエントリポイント情報がないため、v2コメント内の `USR=$hhhh` マーカーを規約として使います: `bas2prg.py --autostart 1000` で付与、既存の `.prg` には `python3 tools/prg_autostart.py game.prg game_auto.prg 300`（v1→v2変換も実施）。ヒントもBASICセクションもないファイルには何もしません
 
 ## プログラムの保存
 

@@ -75,6 +75,7 @@ localparam CONF_STR = {
 	"-;",
 	"O[122:121],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O[2],Extended RAM (reset),Off,On;",
+	"O[5],Autostart loaded program,No,Yes;",
 	"-;",
 	"R[0],Reset;",
 	"J,Fire;",
@@ -248,6 +249,8 @@ jr100_top core
 	.sd1_buff_din (sd1_buff_din),
 	.sd_buff_dout (sd_buff_dout),
 	.sd_buff_wr   (sd_buff_wr),
+
+	.autostart_en (status[5]),
 
 	.key_matrix  (key_matrix),
 	.joy_status  (joy_status),

@@ -58,6 +58,9 @@ module jr100_top
     input  logic [8:0]  sd_buff_addr,
     output logic [7:0]  sd_buff_din,
 
+    // autostart (OSD): type RUN / A=USR($hhhh) after a load
+    input  logic        autostart_en,
+
     // JR-100 inputs
     input  logic [44:0] key_matrix,
     input  logic [7:0]  joy_status,   // CC02 value (AGENTS.md §4)
@@ -179,7 +182,7 @@ module jr100_top
         .ext_wdata  (ext_wdata),
         .ext_we     (ext_we),
         .ext_rdata  (ext_rdata),
-        .key_matrix (key_matrix),
+        .key_matrix (key_matrix | at_overlay),
         .ext_ram_en (ext_ram_eff),
         .pb7        (pb7),
         .snd        (snd),
@@ -222,6 +225,9 @@ module jr100_top
     logic [15:0] prg_mem_addr;
     logic [7:0]  prg_mem_data;
 
+    logic        prg_has_bas, prg_usr_valid;
+    logic [15:0] prg_usr_addr;
+
     jr100_loader prg_loader
     (
         .clk      (clk),
@@ -233,7 +239,52 @@ module jr100_top
         .busy     (prg_busy),
         .mem_we   (prg_mem_we),
         .mem_addr (prg_mem_addr),
-        .mem_data (prg_mem_data)
+        .mem_data (prg_mem_data),
+        .has_bas  (prg_has_bas),
+        .usr_valid (prg_usr_valid),
+        .usr_addr (prg_usr_addr)
+    );
+
+    // ------------------------------------------------------------------
+    // Autostart: when enabled, type RUN (BASIC area loaded) or
+    // A=USR($hhhh) (v2 comment "USR=$hhhh") once a load completes
+    // ------------------------------------------------------------------
+    // the load-done edge is detected one stage delayed so the loader's
+    // end-of-stream usr_valid latch (same clock as the busy fall) has
+    // settled before the mode is sampled
+    logic        prg_busy_d, prg_busy_dd, bas_busy_d, bas_busy_dd;
+    logic        at_start, at_usr;
+    logic [15:0] at_addr;
+    logic [44:0] at_overlay;
+
+    always_ff @(posedge clk) begin
+        prg_busy_d  <= prg_busy;
+        prg_busy_dd <= prg_busy_d;
+        bas_busy_d  <= bas_busy;
+        bas_busy_dd <= bas_busy_d;
+        at_start    <= 1'b0;
+        if (autostart_en) begin
+            if (prg_busy_dd && !prg_busy_d && (prg_usr_valid || prg_has_bas)) begin
+                at_start <= 1'b1;
+                at_usr   <= prg_usr_valid;
+                at_addr  <= prg_usr_addr;
+            end else if (bas_busy_dd && !bas_busy_d) begin
+                at_start <= 1'b1;
+                at_usr   <= 1'b0;
+            end
+        end
+    end
+
+    jr100_autotype autotype
+    (
+        .clk         (clk),
+        .rst         (rst),
+        .cen         (cen_cpu),
+        .start       (at_start),
+        .mode_usr    (at_usr),
+        .usr_addr    (at_addr),
+        .key_overlay (at_overlay),
+        .busy        ()
     );
 
     logic        bas_mem_we;

@@ -69,6 +69,7 @@ int main(int argc, char** argv) {
     const char* program_name = "jr100-boot";
     uint64_t max_cycles = 600000;
     bool ext_ram = false;
+    bool autostart = false;
     uint32_t joy = 0, joy2 = 0;
     uint64_t joy2_at = 0;   // CPU cycle to switch joy -> joy2 (0 = never)
     std::vector<DumpRange> ranges;
@@ -105,6 +106,7 @@ int main(int argc, char** argv) {
             key_events.push_back(ev);
         }
         else if (arg == "--ext-ram") ext_ram = true;
+        else if (arg == "--autostart") autostart = true;
         else if (arg == "--audio") audio_path = next();
         else if (arg == "--joy") joy = parse_hex(next());
         else if (arg == "--joy2") joy2 = parse_hex(next());
@@ -177,6 +179,7 @@ int main(int argc, char** argv) {
     top->sd_buff_dout = 0;
     top->sd_buff_wr = 0;
     top->sd_buff_addr = 0;
+    top->autostart_en = autostart ? 1 : 0;
     top->ext_ram_en = ext_ram ? 1 : 0;
     top->clk = 0; top->eval();
     tick();

@@ -38,7 +38,13 @@ module jr100_loader
 
     output logic        mem_we,
     output logic [15:0] mem_addr,
-    output logic [7:0]  mem_data
+    output logic [7:0]  mem_data,
+
+    // autostart hints for the OSD option: a PBAS section was loaded
+    // (RUN applies), or a v2 comment carried "USR=$hhhh"
+    output logic        has_bas,
+    output logic        usr_valid,
+    output logic [15:0] usr_addr
 );
 
     localparam logic [31:0] MAGIC        = 32'h474F5250;  // "PROG" LE
@@ -75,6 +81,20 @@ module jr100_loader
     logic [15:0] final_addr;   // last data byte of the BASIC area
     logic [3:0]  fin_step;
     logic        v1_flag_basic;
+    // "USR=$hhhh" scanner over v2 skipped bytes (comments / names)
+    logic [2:0]  m_idx;      // matched chars of "USR=$"
+    logic [2:0]  hex_cnt;
+    logic [15:0] hex_acc;
+
+    function automatic logic is_hex(input logic [7:0] c);
+        is_hex = (c >= "0" && c <= "9") || (c >= "A" && c <= "F") ||
+                 (c >= "a" && c <= "f");
+    endfunction
+
+    function automatic logic [3:0] hex_val(input logic [7:0] c);
+        if (c <= "9") hex_val = c[3:0];
+        else          hex_val = c[3:0] + 4'd9;
+    endfunction
 
     // Collect a little-endian u32; returns 1 when complete.
     function automatic logic u32_done(input logic [7:0] b);
@@ -117,6 +137,10 @@ module jr100_loader
                     state <= S_MAGIC;
                     nbyte <= '0;
                     count <= 32'd4;
+                    has_bas   <= 1'b0;
+                    usr_valid <= 1'b0;
+                    m_idx     <= 3'd0;
+                    hex_cnt   <= 3'd0;
                 end
             end
 
@@ -170,6 +194,7 @@ module jr100_loader
                         final_addr <= wr_ptr - 16'd1;
                         fin_step <= '0;
                         post_finalize <= S_ERROR;   // v1: nothing follows
+                        has_bas <= (acc == 32'd0);
                         state <= (acc == 32'd0) ? S_FINALIZE : S_ERROR;
                     end else begin
                         state <= S_V1_DATA;
@@ -184,6 +209,7 @@ module jr100_loader
                 wr_ptr   <= wr_ptr + 16'd1;
                 count    <= count - 32'd1;
                 if (count == 32'd1) begin
+                    has_bas <= has_bas | v1_flag_basic;
                     if (v1_flag_basic) begin
                         final_addr <= wr_ptr;
                         fin_step <= '0;
@@ -219,6 +245,7 @@ module jr100_loader
 
             S_PBAS_LEN: if (wr) begin
                 if (u32_done(data)) begin
+                    has_bas <= 1'b1;
                     count <= acc;
                     skip_count <= sec_len - 32'd4 - acc;   // trailing bytes
                     wr_ptr <= BASIC_START;
@@ -307,6 +334,43 @@ module jr100_loader
 
             default: state <= S_IDLE;
             endcase
+
+            // comment scanner: runs on the v2 skip path only
+            if (wr && state == S_SKIP && !usr_valid) begin
+                if (m_idx == 3'd5) begin
+                    if (is_hex(data) && hex_cnt < 3'd4) begin
+                        hex_acc <= {hex_acc[11:0], hex_val(data)};
+                        hex_cnt <= hex_cnt + 3'd1;
+                    end else if (hex_cnt != 0) begin
+                        usr_valid <= 1'b1;
+                        usr_addr  <= hex_acc;
+                    end else begin
+                        m_idx <= 3'd0;
+                    end
+                end else begin
+                    case (m_idx)
+                        3'd0: m_idx <= (data == "U") ? 3'd1 : 3'd0;
+                        3'd1: m_idx <= (data == "S") ? 3'd2 :
+                                       (data == "U") ? 3'd1 : 3'd0;
+                        3'd2: m_idx <= (data == "R") ? 3'd3 :
+                                       (data == "U") ? 3'd1 : 3'd0;
+                        3'd3: m_idx <= (data == "=") ? 3'd4 :
+                                       (data == "U") ? 3'd1 : 3'd0;
+                        default: begin
+                            if (data == "$") begin
+                                m_idx   <= 3'd5;
+                                hex_cnt <= 3'd0;
+                                hex_acc <= '0;
+                            end else m_idx <= (data == "U") ? 3'd1 : 3'd0;
+                        end
+                    endcase
+                end
+            end
+            // stream ended while digits were pending: latch them
+            if (!download && m_idx == 3'd5 && hex_cnt != 0 && !usr_valid) begin
+                usr_valid <= 1'b1;
+                usr_addr  <= hex_acc;
+            end
 
             if (!download && state != S_FINALIZE && state != S_IDLE)
                 state <= S_IDLE;

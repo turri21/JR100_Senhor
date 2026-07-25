@@ -73,6 +73,10 @@ def main() -> int:
         "--bin", metavar="ADDR:FILE", type=parse_bin_spec, action="append",
         default=[],
         help="add a PBIN section loading FILE at hex ADDR (repeatable)")
+    parser.add_argument(
+        "--autostart", metavar="ADDR",
+        help="autostart hint: machine-code entry at hex ADDR (writes a"
+             " CMNT section \"USR=$ADDR\" understood by the core)")
     args = parser.parse_args()
 
     memory = _RecordingMemory()
@@ -101,6 +105,15 @@ def main() -> int:
         container += struct.pack("<II", 0x4E494250, len(pbin)) + pbin  # PBIN
         print(f"  PBIN {addr:04X}-{addr + len(data) - 1:04X} "
               f"({len(data)} bytes from {bin_path})")
+    if args.autostart is not None:
+        entry = int(args.autostart.lstrip("$"), 16)
+        if not 0 <= entry <= 0xFFFF:
+            print("error: --autostart address out of range", file=sys.stderr)
+            return 1
+        note = f"USR=${entry:04X}".encode("ascii")
+        cmnt = struct.pack("<I", len(note)) + note
+        container += struct.pack("<II", 0x544E4D43, len(cmnt)) + cmnt  # CMNT
+        print(f"  autostart: USR=${entry:04X}")
     Path(args.out).write_bytes(container)
     print(f"wrote {args.out}: {len(container)} bytes (BASIC {len(payload)} bytes,"
           f" {len(args.bin)} binary section(s))")

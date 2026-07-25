@@ -12,7 +12,7 @@ FPGA re-implementation of the National (Matsushita) JR-100 personal computer (19
 - Real-hardware video timing: 7.15909 MHz dot clock, 15.980 kHz / 62.4 Hz sync (the JR-100's custom non-NTSC format), handled by the MiSTer scaler
 - PS/2 keyboard (full 9x5 matrix), joystick on `$CC02` (active high)
 - BEEP audio with output band limiting (VIA internals never stop)
-- OSD loading of PROG containers (`.prg` v1/v2) and BASIC text files (`.bas`); OSD saving of the BASIC program to a mounted file
+- OSD loading of PROG containers (`.prg` v1/v2) and BASIC text files (`.bas`), with optional autostart; OSD saving of the BASIC program to a mounted file
 - Virtual cassette deck: the ROM's real `SAVE`/`LOAD` commands work against a mounted `.cmt` tape (600-baud FSK through the VIA, as on hardware)
 - Optional 16 KiB extended RAM at `4000-7FFF` (OSD, applied at reset)
 
@@ -39,6 +39,7 @@ The core auto-loads `boot.rom` at start; the OSD "Load BASIC ROM" entry does the
 - `.prg` (PROG v1/v2 containers): OSD → "Load PRG". Binary sections load to their addresses; BASIC sections load at `0246` with workspace pointers set, ready for `LIST`/`RUN`.
 - `.bas` (BASIC text): OSD → "Load BAS". Lines are tokenised as plain ASCII text (uppercased, `\xx` hex escapes supported) and loaded at `0246` with workspace pointers set, ready for `LIST`/`RUN`. `tools/bas2prg.py` remains available for offline conversion.
 - Hybrid BASIC + machine-code programs: build one PROG v2 with `python3 tools/bas2prg.py game.bas game.prg --bin 1000:routine.bin` (repeatable `--bin ADDR:FILE`), load it via "Load PRG", and call the code with `USR($1000)`.
+- Autostart (OSD option, default off): with "Autostart loaded program" on, the core types `RUN` after a BASIC load, or `A=USR($hhhh)` when the container carries the hint. The PROG format itself has no entry-point field, so the hint is a `USR=$hhhh` marker in the v2 comment: add it with `bas2prg.py --autostart 1000` or retrofit any existing `.prg` with `python3 tools/prg_autostart.py game.prg game_auto.prg 300` (also converts v1 to v2). Files without a hint and no BASIC section are left untouched.
 
 ## Saving programs
 
