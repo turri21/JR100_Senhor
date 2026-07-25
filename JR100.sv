@@ -74,6 +74,7 @@ localparam CONF_STR = {
 	"T[4],Tape Play;",
 	"-;",
 	"O[122:121],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+	"O[8:6],Display color,White,Green,Amber,Cyan,Orange,Blue,Paper,Mint;",
 	"O[2],Extended RAM (reset),Off,On;",
 	"O[5],Autostart loaded program,No,Yes;",
 	"-;",
@@ -298,9 +299,25 @@ assign CE_PIXEL  = cen_pix;
 assign VGA_DE = vid_de;
 assign VGA_HS = vid_hs;
 assign VGA_VS = vid_vs;
-assign VGA_R  = {8{vid_pixel}};
-assign VGA_G  = {8{vid_pixel}};
-assign VGA_B  = {8{vid_pixel}};
+// Display colour (OSD): classic monochrome-monitor phosphors. The
+// JR-100's optional dedicated monitor (TR-120MIC) was a green display.
+reg [23:0] fg_color;
+always @(*) begin
+	case (status[8:6])
+		3'd0: fg_color = 24'hFFFFFF;   // White
+		3'd1: fg_color = 24'h33FF33;   // Green (P1)
+		3'd2: fg_color = 24'hFFB000;   // Amber (P3)
+		3'd3: fg_color = 24'h66FFFF;   // Cyan
+		3'd4: fg_color = 24'hFF8020;   // Orange
+		3'd5: fg_color = 24'h99BBFF;   // Blue
+		3'd6: fg_color = 24'hFFE8C8;   // Paper
+		default: fg_color = 24'hCCFFCC; // Mint
+	endcase
+end
+
+assign VGA_R  = vid_pixel ? fg_color[23:16] : 8'h00;
+assign VGA_G  = vid_pixel ? fg_color[15:8]  : 8'h00;
+assign VGA_B  = vid_pixel ? fg_color[7:0]   : 8'h00;
 
 // Band-limited Timer 1 square wave (AGENTS.md §3.4)
 assign AUDIO_L = {1'b0, audio, 14'd0};

@@ -10,6 +10,7 @@ FPGA re-implementation of the National (Matsushita) JR-100 personal computer (19
 - R6522 VIA (timers, shift register, PB7 sound, keyboard matrix scan) verified per-cycle against the reference
 - 32x24 character display (256x192 mono), user-defined characters including the real-hardware shared-VRAM glyphs
 - Real-hardware video timing: 7.15909 MHz dot clock, 15.980 kHz / 62.4 Hz sync (the JR-100's custom non-NTSC format), handled by the MiSTer scaler
+- Display colour selection (OSD): White, Green (the JR-100's optional TR-120MIC was a green monitor), Amber, Cyan, Orange, Blue, Paper, Mint
 - PS/2 keyboard (full 9x5 matrix), joystick on `$CC02` (active high)
 - BEEP audio with output band limiting (VIA internals never stop)
 - OSD loading of PROG containers (`.prg` v1/v2) and BASIC text files (`.bas`), with optional autostart; OSD saving of the BASIC program to a mounted file
